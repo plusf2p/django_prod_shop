@@ -23,7 +23,7 @@ urlpatterns = [
     path("users/", include("django_prod_shop.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
-    # ...
+    path('', include('django_prod_shop.products.urls', namespace='products')),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
