@@ -18,7 +18,7 @@ class Category(models.Model):
         ordering = ['-created']
         indexes = [
             models.Index(fields=['slug']),
-            models.Index(fields=['created']),
+            models.Index(fields=['created_at']),
         ]
 
 
@@ -42,11 +42,11 @@ class Product(models.Model):
 
     class Meta:
         verbose_name_plural = 'Продукты'
-        ordering = ['-created']
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['slug']),
-            models.Index(fields=['created']),
-            models.Index(fields=['cat']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['category']),
         ]
         constraints = [
             models.CheckConstraint(

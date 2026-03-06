@@ -9,10 +9,10 @@ from . import views
 app_name = 'products'
 
 router = DefaultRouter()
-router.register('products', api_views.ProductViewSet.as_view())
+router.register('products', api_views.ProductViewSet)
 
 urlpatterns = [
     path('', views.index, name='index'),
 ]
 
-urlpatterns += router
+urlpatterns += router.urls
