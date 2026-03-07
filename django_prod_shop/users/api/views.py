@@ -10,7 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.permissions import _SupportsHasPermission, IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 

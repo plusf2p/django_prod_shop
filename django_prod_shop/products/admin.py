@@ -21,8 +21,8 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 @admin.register(Category)
-class CategorytAdmin(admin.ModelAdmin):
-    list_display = ['title', 'description_short', 'slug', 'created']
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ['title', 'description_short', 'slug', 'created_at']
     list_display_links = ['title']
     prepopulated_fields = {"slug": ["title"]}
 

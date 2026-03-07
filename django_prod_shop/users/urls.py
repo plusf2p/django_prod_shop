@@ -18,7 +18,7 @@ urlpatterns = [
     path("~update/", view=user_update_view, name="update"),
     path("<int:pk>/", view=user_detail_view, name="detail"),
 
-    path('register/', api_views.RegisterViewSet.as_view(), name='register'),
+    path('register/', api_views.RegisterViewSet.as_view({'post': 'create'}), name='register'),
     path('token/', api_views.MyTokenObtainPairView.as_view()),
     path('token/refresh/', TokenRefreshView.as_view()),
 ]

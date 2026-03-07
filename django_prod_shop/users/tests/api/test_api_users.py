@@ -1,5 +1,8 @@
 from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
+
+from django_prod_shop.users.models import Profile
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -22,22 +25,31 @@ class UsersAPISessionTest(APITestCase):
         }
         response2 = self.client.post(reverse('users:register'), data=self.admin_user_data)
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
-    
+
+        self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
+        self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
+
+        user_model = get_user_model()
+        admin_user = user_model.objects.get(pk=self.admin_profile.pk)
+        admin_user.is_staff = True
+        admin_user.is_superuser = True
+        admin_user.save()
+        
     def test_get_partial_users_by_anon_user(self):
         # Получение чужой записи анонимно
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': 1}))
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_partial_users_by_normal_user(self):
         # Получение своей записи, будучи авторизованным
         self.client.login(
             email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
         )
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': 1}))
+        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение чужой записи, будучи авторизованным
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': 2}))
+        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_partial_users_by_admin_user(self):
@@ -45,11 +57,11 @@ class UsersAPISessionTest(APITestCase):
         self.client.login(
             email=self.admin_user_data.get('email'), password=self.admin_user_data.get('password1')
         )
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': 2}))
+        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение чужой модели, будучи админом
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': 1}))
+        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_put_update_users_by_normal_user(self):
@@ -59,12 +71,12 @@ class UsersAPISessionTest(APITestCase):
         )
         new_wrong_normal_user_data = {
             'email': 'test_wrong_email@mail.ru',
-            'full_name': 'Test Name',
+            'full_name': '',
             'phone': '+8800553535',
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': 1}), data=new_wrong_normal_user_data)
+        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_wrong_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Правильное полное обновление своей записи, будучи авторизованным
@@ -77,11 +89,11 @@ class UsersAPISessionTest(APITestCase):
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': 1}), data=new_normal_user_data)
+        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Частичтное обновление чужой записи, будучи авторизованным
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': 2}), data=new_normal_user_data)
+        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), data=new_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         
     def test_patch_update_users_by_normal_user(self):
@@ -91,12 +103,12 @@ class UsersAPISessionTest(APITestCase):
         )
         new_wrong_normal_user_data = {
             'email': 'test_wrong_email@mail.ru',
-            'full_name': 'Test Name',
+            'full_name': '',
             'phone': '+8800553535',
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': 1}), data=new_wrong_normal_user_data)
+        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_wrong_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Правильное частичное обновление своей записи, будучи авторизованным
@@ -109,9 +121,9 @@ class UsersAPISessionTest(APITestCase):
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': 1}), data=new_normal_user_data)
+        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Частичное обновление чужой записи, будучи авторизованным
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': 2}), data=new_normal_user_data)
+        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), data=new_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
