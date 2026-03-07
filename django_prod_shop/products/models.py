@@ -14,8 +14,9 @@ class Category(models.Model):
         return self.title
 
     class Meta:
+        verbose_name = 'Категория'
         verbose_name_plural = 'Категории'
-        ordering = ['-created']
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['slug']),
             models.Index(fields=['created_at']),
@@ -38,10 +39,11 @@ class Product(models.Model):
     slug = models.SlugField(unique=True, verbose_name='Слаг')
     price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Цена')
     created_at = models.DateTimeField(auto_now=True, verbose_name='Дата создания')
-    sell_counter = models.PositiveIntegerField(verbose_name='Количество продаж')
+    sell_counter = models.PositiveIntegerField(default=0, verbose_name='Количество продаж')
 
     class Meta:
-        verbose_name_plural = 'Продукты'
+        verbose_name = 'Товар'
+        verbose_name_plural = 'Товары'
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['slug']),
@@ -60,6 +62,10 @@ class Product(models.Model):
             models.CheckConstraint(
                 condition=models.Q(reserved_quantity__gte=0),
                 name='reserved_quantity_gte_0'
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sell_counter__gte=0),
+                name='sell_counter_gte_0'
             ),
         ]
 
