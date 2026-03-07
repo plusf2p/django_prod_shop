@@ -2,8 +2,7 @@
 from typing import ClassVar
 
 from django.contrib.auth.models import AbstractUser
-from django.db.models import CharField
-from django.db.models import EmailField
+from django.db.models import CharField, EmailField, OneToOneField, Model, CASCADE
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -37,3 +36,14 @@ class User(AbstractUser):
 
         """
         return reverse("users:detail", kwargs={"pk": self.id})
+
+
+class Profile(Model):
+    user = OneToOneField(User, on_delete=CASCADE, verbose_name='Пользователь')
+    full_name = CharField(max_length=300, verbose_name='Имя')
+    phone = CharField(max_length=40, verbose_name='Телефон')
+    city = CharField(max_length=100, verbose_name='Город')
+    address = CharField(max_length=255, verbose_name='Адрес')
+
+    def __str__(self):
+        return f'{self.full_name} - ({self.user})'

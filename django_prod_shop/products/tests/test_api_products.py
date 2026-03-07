@@ -13,11 +13,11 @@ class ProductAPITest(APITestCase):
         # Два стартовых объекта Product
         self.product1 = Product.objects.create(
             title='Test title of first product', category=self.category, quantity=10, reserved_quantity=5, 
-            description='1', slug='test-title-of-first-product', price=400, sell_counter=50
+            description='1', slug='test-title-of-first-product', price=400, sell_counter=50, is_active=True,
         )
         self.product2 = Product.objects.create(
             title='Test title of second product', category=self.category, quantity=100, reserved_quantity=10, 
-            description='2', slug='test-title-of-second-product', price=200, sell_counter=0
+            description='2', slug='test-title-of-second-product', price=200, sell_counter=0, is_active=True,
         )
     def test_get_list_and_partial_products(self):
         # Взятие всех объектов Product
@@ -55,6 +55,7 @@ class ProductAPITest(APITestCase):
             'slug': 'test-create-title',
             'price': 199,
             'sell_counter': 0,
+            'is_active': True,
         }
         response = self.client.post(reverse('products:product-list'), data=product_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -98,6 +99,7 @@ class ProductAPITest(APITestCase):
             'slug': 'test-create-title',
             'price': 199,
             'sell_counter': 0,
+            'is_active': True,
         }
         response = self.client.put(reverse('products:product-detail', kwargs={'slug': self.product1.slug}), data=new_product_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -139,6 +141,7 @@ class ProductAPITest(APITestCase):
             'slug': response.data.get('slug'),
             'price': 15,
             'sell_counter': response.data.get('sell_counter'),
+            'is_active': response.data.get('is_active'),
         }
         response = self.client.patch(reverse('products:product-detail', kwargs={'slug': self.product1.slug}), data=new_product_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

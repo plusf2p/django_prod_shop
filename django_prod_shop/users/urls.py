@@ -1,12 +1,22 @@
 from django.urls import path
 
-from .views import user_detail_view
-from .views import user_redirect_view
-from .views import user_update_view
+from rest_framework.routers import DefaultRouter
+
+import django_prod_shop.users.api.views as api_views
+from .views import user_detail_view, user_redirect_view, user_update_view
+
 
 app_name = "users"
+
+router = DefaultRouter()
+router.register('profile', api_views.ProfileViewSet)
+
 urlpatterns = [
     path("~redirect/", view=user_redirect_view, name="redirect"),
     path("~update/", view=user_update_view, name="update"),
     path("<int:pk>/", view=user_detail_view, name="detail"),
+
+    path('register/', api_views.RegisterViewSet.as_view(), name='register'),
 ]
+
+urlpatterns += router.urls

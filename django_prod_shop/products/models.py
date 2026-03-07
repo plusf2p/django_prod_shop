@@ -40,6 +40,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Цена')
     created_at = models.DateTimeField(auto_now=True, verbose_name='Дата создания')
     sell_counter = models.PositiveIntegerField(default=0, verbose_name='Количество продаж')
+    is_active = models.BooleanField(default=True, verbose_name='Статус активности')
 
     class Meta:
         verbose_name = 'Товар'
