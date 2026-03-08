@@ -19,8 +19,8 @@ urlpatterns = [
     path("<int:pk>/", view=user_detail_view, name="detail"),
 
     path('register/', api_views.RegisterViewSet.as_view({'post': 'create'}), name='register'),
-    path('token/', api_views.MyTokenObtainPairView.as_view()),
-    path('token/refresh/', TokenRefreshView.as_view()),
+    path('token/', api_views.MyTokenObtainPairView.as_view(), name='token_access'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 urlpatterns += router.urls

@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
 from django_prod_shop.users.models import Profile
@@ -10,6 +9,7 @@ from rest_framework.test import APITestCase
 
 class UsersAPISessionTest(APITestCase):
     def setUp(self):
+        # Регистрация обычного пользователя
         self.normal_user_data = {
             'email': 'test_user1@mail.ru',
             'password1': '12345678',
@@ -18,6 +18,7 @@ class UsersAPISessionTest(APITestCase):
         response1 = self.client.post(reverse('users:register'), data=self.normal_user_data)
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
 
+        # Регистрация админа
         self.admin_user_data = {
             'email': 'admin@mail.ru',
             'password1': 'adminadmin',
@@ -26,9 +27,11 @@ class UsersAPISessionTest(APITestCase):
         response2 = self.client.post(reverse('users:register'), data=self.admin_user_data)
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
 
+        # Получение профилей для будущего обращения к ним
         self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
         self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
 
+        # Назначение пользователя админ правами
         user_model = get_user_model()
         admin_user = user_model.objects.get(pk=self.admin_profile.pk)
         admin_user.is_staff = True
@@ -127,3 +130,115 @@ class UsersAPISessionTest(APITestCase):
         # Частичное обновление чужой записи, будучи авторизованным
         response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), data=new_normal_user_data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class UsersAPIJWTTest(APITestCase):
+    def setUp(self):
+        # Регистрация обычного пользователя
+        self.normal_user_data = {
+            'email': 'test_user1@mail.ru',
+            'password1': '12345678',
+            'password2': '12345678',
+        }
+        response1 = self.client.post(reverse('users:register'), data=self.normal_user_data)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+
+        # Регистрация админа
+        self.admin_user_data = {
+            'email': 'admin@mail.ru',
+            'password1': 'adminadmin',
+            'password2': 'adminadmin',
+        }
+        response2 = self.client.post(reverse('users:register'), data=self.admin_user_data)
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+        # Получение профилей для будущего обращения к ним
+        self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
+        self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
+
+        # Назначение пользователя админ правами
+        user_model = get_user_model()
+        admin_user = user_model.objects.get(pk=self.admin_profile.pk)
+        admin_user.is_staff = True
+        admin_user.is_superuser = True
+        admin_user.save()
+
+    def test_login_normal_user_with_jwt_and_get_users_profile_data(self):
+        # Логин обычного пользователя
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+
+        # Проверка логина
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, 'access')
+        self.assertContains(response, 'refresh')
+        access_token = response.data.get('access')
+
+        # Получение своего профиля
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        # Проверка своего профиля
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, self.normal_user_data.get('email'))
+
+        # Получение чужого профиля
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_login_admin_user_with_jwt_and_get_users_profile_data(self):
+        # Логин админа
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.admin_user_data.get('email'),
+            'password': self.admin_user_data.get('password1'),
+        })
+
+        # Проверка логина
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, 'access')
+        self.assertContains(response, 'refresh')
+        access_token = response.data.get('access')
+
+        # Получение своего профиля
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        # Проверка своего профиля
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, self.admin_user_data.get('email'))
+
+        # Получение чужого профиля
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_refresh_jwt_token_after_login(self):
+        # Логин обычного пользователя
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+
+        # Проверка логина
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, 'access')
+        self.assertContains(response, 'refresh')
+
+        # Получение нового access токена
+        response = self.client.post(reverse('users:token_refresh'), data={
+            'refresh': response.data.get('refresh'),
+        })
+
+        # Проверка нового access токена
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, 'access')
+        self.assertNotContains(response, 'refresh')
