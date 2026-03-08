@@ -31,7 +31,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'], url_path='items')
+    @action(detail=False, methods=['post'], url_path='items', url_name='add_to_cart')
     def add_to_cart(self, request):
         cart = self.get_cart()
         serializer = CartAddSerializer(data=request.data)
@@ -60,7 +60,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
     
-    @action(detail=False, methods=['patch'], url_path=r'items/(?P<item_id>\d+)')
+    @action(detail=False, methods=['patch'], url_path=r'items/(?P<item_id>\d+)', url_name='update_cart_item')
     def update_cart_item(self, request, item_id=None):
         cart = self.get_cart()
         item = get_object_or_404(CartItem, cart=cart, id=item_id)
@@ -86,7 +86,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['delete'], url_path=r'items/(?P<item_id>\d+)')
+    @action(detail=False, methods=['delete'], url_path=r'items/(?P<item_id>\d+)', url_name='remove_cart_item')
     def remove_cart_item(self, request, item_id=None):
         cart = self.get_cart()
         item = get_object_or_404(CartItem, cart=cart, id=item_id)
@@ -95,7 +95,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['delete'], url_path='clear')
+    @action(detail=False, methods=['delete'], url_path='clear', url_name='clear_cart')
     def clear_cart(self, request):
         cart = self.get_cart()
         cart.cart_items.all().delete()
