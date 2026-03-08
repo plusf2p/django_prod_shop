@@ -337,13 +337,13 @@ class CategoryAPITest(APITestCase):
         })
         access_token = response.data.get('access')
 
-        # Попытка удалить товар админу
+        # Попытка удалить категорию админу
         response = self.client.delete(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
             headers={'Authorization': f'Bearer {access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-        # Проверка на наличие стартового удаленного объекта Category
+        # Проверка на наличие стартовой удаленной категории
         response = self.client.get(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
