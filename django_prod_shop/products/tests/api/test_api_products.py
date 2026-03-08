@@ -11,7 +11,7 @@ from django_prod_shop.products.models import Product, Category
 
 class ProductAPITest(APITestCase):
     def setUp(self):
-        ### Users app ####
+        ### Users ####
 
         # Регистрация обычного пользователя
         self.normal_user_data = {
@@ -56,6 +56,44 @@ class ProductAPITest(APITestCase):
             title='Test title of second product', category=self.category, quantity=100, reserved_quantity=10, 
             description='2', slug='test-title-of-second-product', price=200, sell_counter=0, is_active=True,
         )
+    
+    def test_get_search_list(self):
+        # Получение второго товара по поиску по полю title
+        response = self.client.get(f'{reverse('products:product-list')}?search=second')
+        
+        # Проверка на совпадение и несовпадение товаров
+        self.assertContains(response, self.product2.title)
+        self.assertNotContains(response, self.product1.title)
+
+        # Получение первого товара по поиску по полю title
+        response = self.client.get(f'{reverse('products:product-list')}?search=first')
+        
+        # Проверка на совпадение и несовпадение товаров
+        self.assertContains(response, self.product1.title)
+        self.assertNotContains(response, self.product2.title)
+    
+    def test_get_filter_list(self):
+        # Получение второго товара по фильтру по полю price
+        response = self.client.get(f'{reverse('products:product-list')}?price_min=300')
+        
+        # Проверка на совпадение и несовпадение товаров
+        self.assertContains(response, self.product1.title)
+        self.assertNotContains(response, self.product2.title)
+
+        # Получение второго товара по фильтру по полю slug
+        response = self.client.get(f'{reverse('products:product-list')}?slug=test-title-of-second-product')
+        
+        # Проверка на совпадение и несовпадение товаров
+        self.assertContains(response, self.product2.title)
+        self.assertNotContains(response, self.product1.title)
+
+        # Получение обоих товаров по фильтру по полю title
+        response = self.client.get(f'{reverse('products:product-list')}?title=test')
+        
+        # Проверка на совпадение обоих товаров
+        self.assertContains(response, self.product2.title)
+        self.assertContains(response, self.product1.title)
+
     def test_get_list_and_partial_products_by_anon_user(self):
         # Получение всех товаров
         response = self.client.get(reverse('products:product-list'))

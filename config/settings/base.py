@@ -85,12 +85,14 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     'rest_framework_simplejwt',
     'django_filters',
+    'silk',
 ]
 
 LOCAL_APPS = [
     "django_prod_shop.users",
     # Your stuff: custom apps go here
     'django_prod_shop.products',
+    'django_prod_shop.cart',
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -149,6 +151,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    
+    'silk.middleware.SilkyMiddleware',
 ]
 
 # STATIC

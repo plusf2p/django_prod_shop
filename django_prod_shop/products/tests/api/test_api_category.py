@@ -11,7 +11,7 @@ from django_prod_shop.products.models import Category
 
 class CategoryAPITest(APITestCase):
     def setUp(self):
-        ### Users app ####
+        ### Users ####
 
         # Регистрация обычного пользователя
         self.normal_user_data = {
@@ -49,6 +49,21 @@ class CategoryAPITest(APITestCase):
         self.category2 = Category.objects.create(
             title='Test title of second category', slug='test-title-of-second-category', description='2'
         )
+
+    def test_get_search_list(self):
+        # Получение второй категории по поиску по полю title
+        response = self.client.get(f'{reverse('products:category-list')}?search=second')
+        
+        # Проверка на совпадение и несовпадение категорий
+        self.assertContains(response, self.category2.title)
+        self.assertNotContains(response, self.category1.title)
+
+        # Получение первой категории по поиску по полю title
+        response = self.client.get(f'{reverse('products:category-list')}?search=first')
+        
+        # Проверка на совпадение и несовпадение категорий
+        self.assertContains(response, self.category1.title)
+        self.assertNotContains(response, self.category2.title)
 
     def test_get_list_and_partial_categories_by_anon_user(self):
         # Взятие всех категорий
