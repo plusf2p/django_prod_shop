@@ -40,7 +40,7 @@ class ProductAPITest(APITestCase):
         admin_user.is_superuser = True
         admin_user.save()
 
-        ### Products app ###
+        ### Products ###
 
         # Создание стартовой категории
         self.category = Category.objects.create(
