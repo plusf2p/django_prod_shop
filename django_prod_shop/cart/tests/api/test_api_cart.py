@@ -54,14 +54,21 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
     
     def test_add_to_cart_right_products_and_get_it_by_anon_and_normal_users(self):
-        # Создание запроса с товаром
+        # Создание запроса с товарами
         product_data = {
             'product_slug': self.product1.slug,
             'quantity': 1,
         }
+        product_data_2 = {
+            'product_slug': self.product2.slug,
+            'qauntity': 1,
+        }
+
         
-        # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        # Добавление товаров в корзину анонимно
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data_2)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение корзины анонимно
@@ -69,8 +76,9 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины анонимно
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][1]['product_title'], self.product2.title)
+        self.assertEqual(response.data['items'][0]['quantity'], product_data.get('quantity'))
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -85,9 +93,13 @@ class CartAPITest(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Добавление первого товара в корзину обычным пользователем
+        # Добавление товаров в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.post(
+            reverse('cart:cart-add-to-cart'), data=product_data_2, headers={'Authorization': f'Bearer {access_token}'}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -98,8 +110,9 @@ class CartAPITest(APITestCase):
 
         # Провкерка корзины обычным пользователем
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][1]['product_title'], self.product2.title)
+        self.assertEqual(response.data['items'][0]['quantity'], product_data.get('quantity'))
 
     def test_add_to_cart_over_products_and_get_it_by_anon_and_normal_users(self):
         # Добавление неправильного количества товара в корзину
@@ -109,7 +122,7 @@ class CartAPITest(APITestCase):
         }
         
         # Добавление неправильного количества товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data_over)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data_over)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Получение корзины анонимно
@@ -117,8 +130,7 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины анонимно
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data_over.get('quantity'))
+        self.assertEqual(response.data['items'], [])
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -135,7 +147,7 @@ class CartAPITest(APITestCase):
 
         # Добавление неправильного количества товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data_over, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data_over, headers={'Authorization': f'Bearer {access_token}'}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -144,8 +156,7 @@ class CartAPITest(APITestCase):
         
         # Проверка корзины обычным пользователем
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data_over.get('quantity'))
+        self.assertEqual(response.data['items'], [])
     
     def test_add_to_cart_products_and_right_update_it_and_get_it_by_anon_and_normal_users(self):
         # Создание запроса с товаром
@@ -155,23 +166,29 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
 
         # Получение корзины анонимно
         response = self.client.get(reverse('cart:cart-list'))
+        
+        # Получение item_id
+        item_id = self.client.get(reverse('cart:cart-list')).data['items'][0]['id']
 
         # Обновлнение на правильное количество анонимно
         response = self.client.patch(
-            reverse('cart:cart-update_cart_item', kwargs={'item_id': self.product1.pk}), data={'quantity': 2}
+            reverse('cart:cart-update-cart-item', kwargs={'item_id': item_id}), data={'quantity': 2}
         )
+        
+        # Проверка запроса
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение корзины анонимно после обновления
         response = self.client.get(reverse('cart:cart-list'))
 
         # Проверка корзины анонимно после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertContains(response.data, 2)
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][0]['quantity'], 2)
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -187,19 +204,20 @@ class CartAPITest(APITestCase):
 
         # Добавление первого товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
         )
 
-        # Получение корзины обычным пользователем
-        response = self.client.get(
-            reverse('cart:cart-list'), headers={'Authorization': f'Bearer {access_token}'}
-        )
+        # Получение item_id
+        item_id = self.client.get(reverse('cart:cart-list'), headers={'Authorization': f'Bearer {access_token}'}).data['items'][0]['id']
 
         # Обновлнение на правильное количество обычным пользователем
         response = self.client.patch(
-            reverse('cart:cart-update_cart_item', kwargs={'item_id': self.product1.pk}), 
+            reverse('cart:cart-update-cart-item', kwargs={'item_id': item_id}), 
             data={'quantity': 2}, headers={'Authorization': f'Bearer {access_token}'},
         )
+
+        # Проверка запроса
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение корзины обычным пользователем после обновления 
         response = self.client.get(
@@ -208,8 +226,8 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины обычным пользователем после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertContains(response.data, 2)
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][0]['quantity'], 2)
     
     def test_add_to_cart_products_and_over_update_it_and_get_it_by_anon_and_normal_users(self):
         # Создание запроса с товаром
@@ -219,23 +237,26 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
 
-        # Получение корзины анонимно
-        response = self.client.get(reverse('cart:cart-list'))
+        # Получение item_id
+        item_id = self.client.get(reverse('cart:cart-list')).data['items'][0]['id']
 
         # Обновлнение на неправильное количество анонимно
         response = self.client.patch(
-            reverse('cart:cart-update_cart_item', kwargs={'item_id': self.product1.pk}), data={'quantity': 1000}
+            reverse('cart:cart-update-cart-item', kwargs={'item_id': item_id}), data={'quantity': 1000}
         )
+
+        # Проверка запроса
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Получение корзины анонимно после обновления
         response = self.client.get(reverse('cart:cart-list'))
 
         # Проверка корзины анонимно после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, 1000)
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertNotEqual(response.data['items'][0]['quantity'], 1000)
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -246,14 +267,20 @@ class CartAPITest(APITestCase):
 
         # Добавление первого товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
         )
+
+        # Получение item_id
+        item_id = self.client.get(reverse('cart:cart-list'), headers={'Authorization': f'Bearer {access_token}'}).data['items'][0]['id']
 
         # Обновлнение на неправильное количество обычным пользователем
         response = self.client.patch(
-            reverse('cart:cart-update_cart_item', kwargs={'item_id': self.product1.pk}), 
+            reverse('cart:cart-update-cart-item', kwargs={'item_id': item_id}), 
             data={'quantity': 1000}, headers={'Authorization': f'Bearer {access_token}'},
         )
+
+        # Проверка запроса
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Получение корзины обычным пользователем после обновления 
         response = self.client.get(
@@ -262,8 +289,8 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины обычным пользователем после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, 1000)
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertNotEqual(response.data['items'][0]['quantity'], 1000)
 
     def test_add_to_cart_products_and_right_remove_it_and_get_it_by_anon_and_normal_users(self):
         # Создание запроса с товаром
@@ -273,11 +300,14 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
+
+        # Получение item_id
+        item_id = self.client.get(reverse('cart:cart-list')).data['items'][0]['id']
 
         # Удаление из корзины анонимно
         response = self.client.delete(
-            reverse('cart:cart-remove_cart_item', kwargs={'item_id': self.product1.pk})
+            reverse('cart:cart-remove-cart-item', kwargs={'item_id': item_id})
         )
 
         # Получение корзины анонимно после удаления
@@ -285,8 +315,7 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины анонимно после удаления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'], [])
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -297,17 +326,21 @@ class CartAPITest(APITestCase):
 
         # Получение пустой корзины обычным пользователем
         response = self.client.get(
-            reverse('cart:cart-list'),headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-list'), headers={'Authorization': f'Bearer {access_token}'}
         )
 
         # Добавление первого товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Получение item_id
+        item_id = response.data['items'][0]['id']
 
         # Удаление из корзины обычным пользователем
         response = self.client.delete(
-            reverse('cart:cart-remove_cart_item', kwargs={'item_id': self.product1.pk}), 
+            reverse('cart:cart-remove-cart-item', kwargs={'item_id': item_id}), 
             headers={'Authorization': f'Bearer {access_token}'},
         )
 
@@ -318,8 +351,7 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины обычным пользователем после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'], [])
 
     def test_add_to_cart_products_and_wrong_remove_it_and_get_it_by_anon_and_normal_users(self):
         # Создание запроса с товаром
@@ -329,21 +361,21 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
 
         # Неправильное удаление из корзины анонимно
         response = self.client.delete(
-            reverse('cart:cart-remove_cart_item', kwargs={'item_id': self.product2.pk})
+            reverse('cart:cart-remove-cart-item', kwargs={'item_id': 50})
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         # Получение корзины анонимно после удаления
         response = self.client.get(reverse('cart:cart-list'))
 
         # Проверка корзины анонимно после удаления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][0]['quantity'], product_data.get('quantity'))
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -352,22 +384,17 @@ class CartAPITest(APITestCase):
         })
         access_token = response.data.get('access')
 
-        # Получение пустой корзины обычным пользователем
-        response = self.client.get(
-            reverse('cart:cart-list'),headers={'Authorization': f'Bearer {access_token}'}
-        )
-
         # Добавление первого товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
         )
 
         # Неправильное удаление из корзины обычным пользователем
         response = self.client.delete(
-            reverse('cart:cart-remove_cart_item', kwargs={'item_id': self.product2.pk}), 
+            reverse('cart:cart-remove-cart-item', kwargs={'item_id': 50}), 
             headers={'Authorization': f'Bearer {access_token}'},
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         # Получение корзины обычным пользователем после обновления 
         response = self.client.get(
@@ -376,8 +403,8 @@ class CartAPITest(APITestCase):
 
         # Проверка корзины обычным пользователем после обновления
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
+        self.assertEqual(response.data['items'][0]['quantity'], product_data.get('quantity'))
 
     def test_clear_cart_by_anon_and_normal_users(self):
         # Создание запроса с товаром
@@ -387,19 +414,18 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление первого товара в корзину анонимно
-        response = self.client.post(reverse('cart:cart-add_to_cart'), data=product_data)
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
 
         # Очистка корзины анонимно
-        response = self.client.delete(reverse('cart:cart-clear_cart'))
+        response = self.client.delete(reverse('cart:cart-clear-cart'))
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-        # Получение корзины анонимно после обновления
+        # Получение корзины анонимно после очистки
         response = self.client.get(reverse('cart:cart-list'))
         
         # Проверка корзины анонимно после очистки
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotContains(response.data, self.product1.title)
-        self.assertNotContains(response.data, product_data.get('quantity'))
+        self.assertEqual(response.data['items'], [])
 
         # Логин обычного пользователя
         response = self.client.post(reverse('users:token_access'), data={
@@ -410,21 +436,20 @@ class CartAPITest(APITestCase):
 
         # Добавление первого товара в корзину обычным пользователем
         response = self.client.post(
-            reverse('cart:cart-add_to_cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
+            reverse('cart:cart-add-to-cart'), data=product_data, headers={'Authorization': f'Bearer {access_token}'}
         )
 
         # Очистка корзины обычным пользователем
         response = self.client.delete(
-            reverse('cart:cart-clear_cart'), headers={'Authorization': f'Bearer {access_token}'},
+            reverse('cart:cart-clear-cart'), headers={'Authorization': f'Bearer {access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-        # Получение корзины обычным пользователем после обновления 
+        # Получение корзины обычным пользователем после очистки
         response = self.client.get(
             reverse('cart:cart-list'), headers={'Authorization': f'Bearer {access_token}'}
         )
 
-        # Проверка корзины обычным пользователем после обновления
+        # Проверка корзины обычным пользователем после очистки
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertContains(response.data, self.product1.title)
-        self.assertContains(response.data, 2)
+        self.assertEqual(response.data['items'], [])

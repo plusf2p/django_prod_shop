@@ -5,9 +5,11 @@ from django_prod_shop.cart.models import Cart, CartItem
 
 
 class CartItemSerializer(serializers.ModelSerializer):
+    product_title = serializers.CharField(source='product.title', read_only=True)
+
     class Meta:
         model = CartItem
-        fields = ['product', 'quantity', 'total_price']
+        fields = ['id', 'product_title', 'quantity', 'total_price']
 
 
 class CartSerializer(serializers.ModelSerializer):
