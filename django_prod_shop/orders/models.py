@@ -1,3 +1,5 @@
+import uuid
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -12,11 +14,12 @@ user = get_user_model()
 
 
 class Order(models.Model):
-    class StatusChoices(models.TextChoices)
-        PENDING = 'В процессе'
-        PAID = 'Оплачено'
-        CANCELLED = 'Отменено'
+    class StatusChoices(models.TextChoices):
+        PENDING = 'pending', 'В процессе'
+        PAID = 'paid', 'Оплачено'
+        CANCELLED = 'cancelled', 'Отменено'
 
+    order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         user, null=True, related_name='orders', on_delete=models.SET_NULL, verbose_name='Пользователь'
     )
@@ -31,8 +34,6 @@ class Order(models.Model):
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING, verbose_name='Статус'
     )
-    # yookassa_id = models.CharField(max_length=250, blank=True, verbose_name='Stripe ID')
-    # release_task_id = models.CharField(max_length=250, blank=True, null=True, verbose_name='Celery ID')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
 
