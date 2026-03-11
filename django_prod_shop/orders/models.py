@@ -49,14 +49,14 @@ class Order(models.Model):
     
     @property
     def total_price_before_discount(self):
-        return sum(item.get_cost() for item in self.items.all())
+        return sum((item.cost for item in self.items.all()), Decimal('0.00'))
 
     @property
     def discount_price(self):
         total_cost = self.total_price_before_discount
         if self.discount:
-            return total_cost * (self.discount / Decimal(100))
-        return 0
+            return total_cost * (Decimal(self.discount) / Decimal('100'))
+        return Decimal('0.00')
 
     @property
     def total_price_after_discount(self):
@@ -68,10 +68,10 @@ class OrderItem(models.Model):
         Order, related_name='items', on_delete=models.CASCADE, verbose_name='Заказ'
     )
     product = models.ForeignKey(
-        Product, related_name='order_items', on_delete=models.CASCADE, verbose_name='Товар'
+        Product, related_name='order_items', on_delete=models.PROTECT, verbose_name='Товар'
     )
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Цена')
-    quantity = models.PositiveIntegerField(default=1, verbose_name='Количиство')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Количество')
 
     class Meta:
         verbose_name_plural = 'Товары заказа'

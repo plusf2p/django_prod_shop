@@ -1,21 +1,23 @@
 from rest_framework import serializers
 
-from django.db.models import Prefetch
-
-from django_prod_shop.cart.models import Cart, CartItem
 from django_prod_shop.orders.models import Order, OrderItem
+from django_prod_shop.orders.services import create_order
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product_slug = serializers.SlugRelatedField(read_only=True, slug_field='product.slug')
+    product_slug = serializers.SlugRelatedField(read_only=True, source='product', slug_field='slug')
+    cost = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['order', 'product_slug', 'price', 'quantity', 'cost']
+        fields = ['product_slug', 'price', 'quantity', 'cost']
+
+    def get_cost(self, obj):
+        return obj.cost
 
 
 class OrderReadSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(source='items', many=True, read_only=True)
+    items = OrderItemSerializer(many=True, read_only=True)
     total_price_before_discount = serializers.SerializerMethodField(read_only=True)
     discount_price = serializers.SerializerMethodField(read_only=True)
     total_price_after_discount = serializers.SerializerMethodField(read_only=True)
@@ -23,12 +25,13 @@ class OrderReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'items', 'user', 'full_name', 'phone', 'address', 'city',
+            'order_id', 'items', 'user', 'full_name', 'phone', 'address', 'city',
             'discount', 'status', 'created_at', 'updated_at', 'total_price',
             'total_price_before_discount', 'discount_price', 'total_price_after_discount',
         ]
         read_only_fields = [
-            'id', 'user', 'discount', 'status', 'created_at', 'updated_at', 'total_price',
+            'order_id', 'items', 'user', 'full_name', 'phone', 'address', 'city',
+            'discount', 'status', 'created_at', 'updated_at', 'total_price',
             'total_price_before_discount', 'discount_price', 'total_price_after_discount',
         ]
     
@@ -43,28 +46,13 @@ class OrderReadSerializer(serializers.ModelSerializer):
 
 
 class OrderWriteSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(source='items', many=True, read_only=True)
-
     class Meta:
         model = Order
         fields = [
-            'id', 'items', 'user', 'full_name', 'phone', 'address', 'city',
+            'order_id', 'full_name', 'phone', 'address', 'city',
             'discount', 'status', 'created_at', 'updated_at', 'total_price',
         ]
-        read_only_fields = ['status']
+        read_only_fields = ['order_id', 'status', 'created_at', 'updated_at', 'total_price']
 
     def create(self, validated_data):
-        items = validated_data.pop('items')
-        order = Order.objects.create(**validated_data)
-        user = validated_data.pop('user')
-
-        for item in items:
-            OrderItem.objects.create(order=order, **item)
-        
-        cart = Cart.objects.select_related('user').prefetch_related(
-            Prefetch('items', queryset=CartItem.objects.select_related('product'))
-        ).filter(user=user)
-        cart.items.all().delete()
-        cart.delete()
-
-        return order
+        return create_order(user=self.context['request'].user, validated_data=validated_data)
