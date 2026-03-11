@@ -1,13 +1,11 @@
 import uuid
 
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db import models
-from datetime import timedelta
 from decimal import Decimal
 
-from products.models import Product
+from django_prod_shop.products.models import Product
 
 
 user = get_user_model()

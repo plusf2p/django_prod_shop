@@ -12,12 +12,12 @@ from .models import Order, OrderItem
 @transaction.atomic
 def create_order(user, validated_data):
     cart = Cart.objects.select_related('user').prefetch_related(
-        Prefetch('items', queryset=CartItem.objects.select_related('product'))
+        Prefetch('cart_items', queryset=CartItem.objects.select_related('product'))
     ).filter(user=user).first()
 
     if cart is None:
         raise ValidationError('У пользователя нет корзины')
-    cart_items = list(cart.items.all())
+    cart_items = list(cart.cart_items.all())
     if not cart_items:
         raise ValidationError('Корзина пуста')
 
@@ -41,7 +41,7 @@ def create_order(user, validated_data):
     order.total_price = total_before_discount - discount
     order.save(update_fields=['total_price'])
     
-    cart.items.all().delete()
+    cart.cart_items.all().delete()
     cart.delete()
 
     return order

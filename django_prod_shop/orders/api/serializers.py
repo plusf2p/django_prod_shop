@@ -5,12 +5,13 @@ from django_prod_shop.orders.services import create_order
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product_slug = serializers.SlugRelatedField(read_only=True, source='product', slug_field='slug')
+    product_title = serializers.CharField(source='product.title', read_only=True)
+    product_slug = serializers.SlugRelatedField(source='product', slug_field='slug', read_only=True)
     cost = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['product_slug', 'price', 'quantity', 'cost']
+        fields = ['product_title', 'product_slug', 'price', 'quantity', 'cost']
 
     def get_cost(self, obj):
         return obj.cost
