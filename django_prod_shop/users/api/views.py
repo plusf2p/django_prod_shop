@@ -1,14 +1,8 @@
-from collections.abc import Sequence
-from typing import Any
-
-from django.db.models.query import QuerySet
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import (ListModelMixin, RetrieveModelMixin, UpdateModelMixin, 
                                    CreateModelMixin)
-from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
