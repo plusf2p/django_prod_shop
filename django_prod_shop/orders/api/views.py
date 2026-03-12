@@ -7,6 +7,10 @@ from rest_framework import status
 
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.vary import vary_on_headers
+from django.views.decorators.cache import cache_page
+from django.core.cache import cache
 
 from django_prod_shop.orders.models import Order, OrderItem
 from .serializers import OrderReadSerializer, OrderWriteSerializer
@@ -48,3 +52,15 @@ class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, Generic
         if self.action == 'create':
             return OrderWriteSerializer
         return OrderReadSerializer
+
+    def retrieve(self, request, order_id, *args, **kwargs):
+        cache_key = f'order_retrieve_{order_id}'
+        cached_order = cache.get(cache_key)
+
+        if cached_order is not None:
+            return Response(cached_order)
+        
+        response = super().retrieve(request, *args, **kwargs)
+        cache.set(cache_key, response.data, 60*60)
+
+        return Response(response.data, status=status.HTTP_200_OK)

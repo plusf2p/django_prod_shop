@@ -8,10 +8,11 @@ from rest_framework.mixins import ListModelMixin
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
 
 from django_prod_shop.cart.api.serializers import CartSerializer, CartAddSerializer, CartUpdateSerializer
 from django_prod_shop.cart.models import Cart, CartItem
-from django_prod_shop.cart.services import get_or_create_cart
+from django_prod_shop.cart.services import get_or_create_cart, get_cart_cache_key
 
 
 class CartViewSet(ListModelMixin, GenericViewSet):
@@ -28,8 +29,17 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         return self.get_cart_queryset().get(pk=cart.pk)
 
     def list(self, request, *args, **kwargs):
+        cache_key = get_cart_cache_key(request)
+        cached_cart = cache.get(cache_key)
+
+        if cached_cart is not None:
+            return Response(cached_cart, status=status.HTTP_200_OK)
+
         cart = self.get_cart()
-        return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
+        data = self.get_serializer(cart).data
+        cache.set(cache_key, data, 60*60)
+
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='items', url_name='add-to-cart')
     def add_to_cart(self, request):
@@ -41,11 +51,19 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         quantity = serializer.validated_data['quantity']
 
         with transaction.atomic():
-            item, created = CartItem.objects.select_related('product').select_for_update().get_or_create(
-                cart=cart, product=product, defaults={'quantity': quantity}
-            )
-            if not created:
-                available_quantity = item.product.quantity - item.product.reserved_quantity
+            available_quantity = product.quantity - product.reserved_quantity
+
+            if quantity > available_quantity:
+                return Response(
+                    {'quantity': f'Недостаточно товара на складе. Доступно: {available_quantity}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            item = CartItem.objects.select_for_update().filter(cart=cart, product=product).first()
+
+            if item is None:
+                CartItem.objects.create(cart=cart, product=product, quantity=quantity)
+            else:
                 new_quantity = item.quantity + quantity
                 
                 if new_quantity > available_quantity:

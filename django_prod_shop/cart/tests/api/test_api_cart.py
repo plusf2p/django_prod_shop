@@ -230,13 +230,23 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.data['items'][0]['quantity'], 2)
     
     def test_add_to_cart_products_and_over_update_it_and_get_it_by_anon_and_normal_users(self):
+        # Создание запроса с неправильным товаром
+        product_data_worng = {
+            'product_slug': self.product1.slug,
+            'quantity': 10000,
+        }
+
         # Создание запроса с товаром
         product_data = {
             'product_slug': self.product1.slug,
             'quantity': 1,
         }
+        
+        # Неправильное добавление в корзину анонимно и проверка
+        response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data_worng)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Добавление первого товара в корзину анонимно
+        # Добавление первого товара в корзину анонимно правильно
         response = self.client.post(reverse('cart:cart-add-to-cart'), data=product_data)
 
         # Получение item_id

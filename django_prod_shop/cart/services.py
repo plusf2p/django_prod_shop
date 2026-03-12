@@ -17,3 +17,10 @@ def get_or_create_cart(request):
     session_key = get_or_create_session_key(request)
     cart, _ = Cart.objects.get_or_create(session_key=session_key)
     return cart
+
+
+def get_cart_cache_key(request):
+    if request.user.is_authenticated:
+        return f'cart_list_user_{request.user.pk}'
+    session_key = get_or_create_session_key(request)
+    return f'cart_list_session_{session_key}'

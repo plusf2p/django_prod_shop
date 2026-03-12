@@ -3,6 +3,8 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework import filters
 
 from django_filters import rest_framework as dj_filters
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from django_prod_shop.products.models import Category, Product
 from django_prod_shop.products.pagination import CustomPaginator
@@ -36,6 +38,13 @@ class ProductViewSet(ModelViewSet):
         
         return [permission() for permission in permission_classes]
 
+    @method_decorator(cache_page(60*60, key_prefix='product_list'))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @method_decorator(cache_page(60*60, key_prefix='product_detail'))
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
 
 class CategoryViewSet(ModelViewSet):
@@ -54,3 +63,11 @@ class CategoryViewSet(ModelViewSet):
             permission_classes = [AllowAny]
         
         return [permission() for permission in permission_classes]
+
+    @method_decorator(cache_page(60*60, key_prefix='category_list'))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @method_decorator(cache_page(60*60, key_prefix='category_detail'))
+    def retrieve(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
