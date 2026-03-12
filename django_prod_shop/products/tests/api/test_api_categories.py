@@ -2,7 +2,7 @@ from django.urls import reverse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from django_prod_shop.users.models import Profile
@@ -11,6 +11,10 @@ from django_prod_shop.products.models import Category
 
 class CategoryAPITest(APITestCase):
     def setUp(self):
+        self.client = APIClient()
+        self.anon_client = APIClient()
+        self.admin_client = APIClient()
+
         ### Users ####
 
         # Регистрация обычного пользователя
@@ -21,13 +25,29 @@ class CategoryAPITest(APITestCase):
         }
         self.client.post(reverse('users:register'), data=self.normal_user_data)
 
+        # Логин обычного пользователя и проверка
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        self.access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
         # Регистрация админа
         self.admin_user_data = {
             'email': 'admin@mail.ru',
             'password1': 'adminadmin',
             'password2': 'adminadmin',
         }
-        self.client.post(reverse('users:register'), data=self.admin_user_data)
+        self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
+
+        # Логин админа пользователя и проверка
+        response = self.admin_client.post(reverse('users:token_access'), data={
+            'email': self.admin_user_data.get('email'),
+            'password': self.admin_user_data.get('password1'),
+        })
+        self.access_token_admin = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение профилей для будущего обращения к ним
         self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
@@ -96,20 +116,13 @@ class CategoryAPITest(APITestCase):
         }
 
         # Попытка создать категорию анонимно
-        response = self.client.post(reverse('products:category-list'), data=category_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        response = self.anon_client.post(reverse('products:category-list'), data=category_data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка создать категорию обычному пользователю
         response = self.client.post(
             reverse('products:category-list'), data=category_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -121,17 +134,10 @@ class CategoryAPITest(APITestCase):
             'slug': 'test-create-title',
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка создать категорию админу
-        response = self.client.post(
+        response = self.admin_client.post(
             reverse('products:category-list'), data=category_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -143,7 +149,7 @@ class CategoryAPITest(APITestCase):
         # Взятие этой категории
         new_category = get_object_or_404(Category, slug=category_data.get('slug'))
 
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': new_category.slug}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': new_category.slug}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Проверка этой категории
@@ -155,14 +161,14 @@ class CategoryAPITest(APITestCase):
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-        response = self.client.post(
+        response = self.admin_client.post(
             reverse('products:category-list'), data=wrong_category_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
             )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Неправильное взятие одной категории после создания
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': wrong_category_data.get('slug')}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': wrong_category_data.get('slug')}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_put_partial_category_by_anon_and_normal_users(self):
@@ -174,22 +180,15 @@ class CategoryAPITest(APITestCase):
         }
 
         # Попытка польностью обновить категорию анонимному пользователю
-        response = self.client.put(
+        response = self.anon_client.put(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), data=new_category_data
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка обновить категорию обычному пользователю
         response = self.client.put(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
-            data=new_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_category_data, headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
@@ -201,22 +200,15 @@ class CategoryAPITest(APITestCase):
             'slug': 'new-put-test',
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка полностью обновить категорию админу
-        response = self.client.put(
+        response = self.admin_client.put(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
-            data=new_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_category_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Взятие новой категории
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('products:category-detail', kwargs={'slug': new_category_data.get('slug')})
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -230,21 +222,21 @@ class CategoryAPITest(APITestCase):
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-        response = self.client.put(
+        response = self.admin_client.put(
             reverse('products:category-detail', kwargs={'slug': self.category2.slug}), 
-            data=wrong_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=wrong_category_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Неправильное взятие одного объекта Category после полного обновления
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('products:category-detail', kwargs={'slug': wrong_category_data.get('slug')})
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_patch_partial_category_by_anon_and_normal_users(self):
         # Получение существующей категории
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
+        response = self.anon_client.get(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # Частичное обновление одной категории
@@ -255,22 +247,15 @@ class CategoryAPITest(APITestCase):
         }
 
         # Попытка частично обновить категорию анонимному пользователю
-        response = self.client.patch(
+        response = self.anon_client.patch(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), data=new_category_data
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка частично обновить категорию обычному пользователю
         response = self.client.patch(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}),  
-            data=new_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_category_data, headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -286,22 +271,15 @@ class CategoryAPITest(APITestCase):
             'slug': response.data.get('slug'),
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка частично обновить категорию админу
-        response = self.client.patch(
+        response = self.admin_client.patch(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
-            data=new_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_category_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Взятие новой категории
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': new_category_data.get('slug')}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': new_category_data.get('slug')}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Проверка новой категории
@@ -309,56 +287,42 @@ class CategoryAPITest(APITestCase):
         self.assertEqual(response.data.get('slug'), new_category_data.get('slug'))
     
         # Неправильное частичное обновление одной категории
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': self.category2.slug}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': self.category2.slug}))
         wrong_category_data = {
             'title': '',
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-        response = self.client.patch(
+        response = self.admin_client.patch(
             reverse('products:category-detail', kwargs={'slug': self.category2.slug}), 
-            data=wrong_category_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=wrong_category_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Неправильное взятие одной категории после частичного обновления
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': wrong_category_data.get('slug')}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': wrong_category_data.get('slug')}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_delete_partial_category_by_anon_and_normal_user(self):
         # Удаление категории анонимным пользователем
-        response = self.client.delete(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        response = self.anon_client.delete(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка удалить товар категорию пользователю
         response = self.client.delete(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_partial_category(self):
-         # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка удалить категорию админу
-        response = self.client.delete(
+        response = self.admin_client.delete(
             reverse('products:category-detail', kwargs={'slug': self.category1.slug}), 
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         # Проверка на наличие стартовой удаленной категории
-        response = self.client.get(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
+        response = self.admin_client.get(reverse('products:category-detail', kwargs={'slug': self.category1.slug}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

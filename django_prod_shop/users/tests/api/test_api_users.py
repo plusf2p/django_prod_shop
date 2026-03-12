@@ -4,12 +4,16 @@ from django.urls import reverse
 from django_prod_shop.users.models import Profile
 
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 
 
 class UsersAPISessionTest(APITestCase):
     def setUp(self):
-        # Регистрация обычного пользователя
+        self.client = APIClient()
+        self.anon_client = APIClient()
+        self.admin_client = APIClient()
+
+        # Регистрация обычного пользователя и проверка
         self.normal_user_data = {
             'email': 'test_user1@mail.ru',
             'password1': '12345678',
@@ -18,14 +22,30 @@ class UsersAPISessionTest(APITestCase):
         response1 = self.client.post(reverse('users:register'), data=self.normal_user_data)
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
 
-        # Регистрация админа
+        # Логин обычного пользователя и проверка
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        self.access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Регистрация админа и проверка
         self.admin_user_data = {
             'email': 'admin@mail.ru',
             'password1': 'adminadmin',
             'password2': 'adminadmin',
         }
-        response2 = self.client.post(reverse('users:register'), data=self.admin_user_data)
+        response2 = self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+        # Логин админа пользователя и проверка
+        response = self.admin_client.post(reverse('users:token_access'), data={
+            'email': self.admin_user_data.get('email'),
+            'password': self.admin_user_data.get('password1'),
+        })
+        self.access_token_admin = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение профилей для будущего обращения к ним
         self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
@@ -40,38 +60,41 @@ class UsersAPISessionTest(APITestCase):
         
     def test_get_partial_users_by_anon_user(self):
         # Получение чужой записи анонимно
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.anon_client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_partial_users_by_normal_user(self):
         # Получение своей записи, будучи авторизованным
-        self.client.login(
-            email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение чужой записи, будучи авторизованным
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}))
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}),
+            headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_partial_users_by_admin_user(self):
         # Получение своей записи, будучи админом
-        self.client.login(
-            email=self.admin_user_data.get('email'), password=self.admin_user_data.get('password1')
+        response = self.admin_client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}),
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Получение чужой модели, будучи админом
-        response = self.client.get(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}))
+        response = self.admin_client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_put_update_users_by_normal_user(self):
         # Ошибочное полное обновление своей записи, будучи авторизованным
-        self.client.login(
-            email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
-        )
         new_wrong_normal_user_data = {
             'email': 'test_wrong_email@mail.ru',
             'full_name': '',
@@ -79,31 +102,33 @@ class UsersAPISessionTest(APITestCase):
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_wrong_normal_user_data)
+        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), 
+            data=new_wrong_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'}
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Правильное полное обновление своей записи, будучи авторизованным
-        self.client.login(
-            email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
-        )
         new_normal_user_data = {
             'full_name': 'Test Name',
             'phone': '+8800553535',
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_normal_user_data)
+        response = self.client.put(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), 
+            data=new_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Частичтное обновление чужой записи, будучи авторизованным
-        response = self.client.put(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), data=new_normal_user_data)
+        response = self.client.put(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), 
+            data=new_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         
     def test_patch_update_users_by_normal_user(self):
         # Ошибочное частичное обновление своей записи, будучи авторизованным
-        self.client.login(
-            email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
-        )
         new_wrong_normal_user_data = {
             'email': 'test_wrong_email@mail.ru',
             'full_name': '',
@@ -111,29 +136,38 @@ class UsersAPISessionTest(APITestCase):
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_wrong_normal_user_data)
+        response = self.client.patch(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), 
+            data=new_wrong_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Правильное частичное обновление своей записи, будучи авторизованным
-        self.client.login(
-            email=self.normal_user_data.get('email'), password=self.normal_user_data.get('password1')
-        )
         new_normal_user_data = {
             'full_name': 'Test Name',
             'phone': '+8800553535',
             'city': 'Moscow',
             'address': 'Gagarina 14',
         }
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), data=new_normal_user_data)
+        response = self.client.patch(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}), 
+            data=new_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Частичное обновление чужой записи, будучи авторизованным
-        response = self.client.patch(reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), data=new_normal_user_data)
+        response = self.client.patch(
+            reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}), 
+            data=new_normal_user_data, headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class UsersAPIJWTTest(APITestCase):
     def setUp(self):
+        self.client = APIClient()
+        self.admin_client = APIClient()
+
         # Регистрация обычного пользователя
         self.normal_user_data = {
             'email': 'test_user1@mail.ru',
@@ -149,7 +183,7 @@ class UsersAPIJWTTest(APITestCase):
             'password1': 'adminadmin',
             'password2': 'adminadmin',
         }
-        response2 = self.client.post(reverse('users:register'), data=self.admin_user_data)
+        response2 = self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
 
         # Получение профилей для будущего обращения к ним
@@ -194,7 +228,7 @@ class UsersAPIJWTTest(APITestCase):
 
     def test_login_admin_user_with_jwt_and_get_users_profile_data(self):
         # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
+        response = self.admin_client.post(reverse('users:token_access'), data={
             'email': self.admin_user_data.get('email'),
             'password': self.admin_user_data.get('password1'),
         })
@@ -206,7 +240,7 @@ class UsersAPIJWTTest(APITestCase):
         access_token = response.data.get('access')
 
         # Получение своего профиля
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('users:profile-detail', kwargs={'pk': self.admin_profile.pk}),
             headers={'Authorization': f'Bearer {access_token}'},
         )
@@ -215,7 +249,7 @@ class UsersAPIJWTTest(APITestCase):
         self.assertContains(response, self.admin_user_data.get('email'))
 
         # Получение чужого профиля
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
             headers={'Authorization': f'Bearer {access_token}'},
         )

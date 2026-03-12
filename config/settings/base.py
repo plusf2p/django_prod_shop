@@ -260,15 +260,29 @@ LOGGING = {
         "verbose": {
             "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
         },
+        'file_formatter': {
+            'format': '{levelname} {asctime} - {module} {process} {thread}: {message}',
+            'style': '{',
+        }
     },
     "handlers": {
         "console": {
-            "level": "DEBUG",
+            "level": "INFO",
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        # 'file': {
+        #     'class': 'logging.FileHandler',
+        #     'filename': 'django_prod.log',
+        #     'level': 'DEBUG',
+        #     'formatter': 'file_formatter',
+        # }
     },
-    "root": {"level": "INFO", "handlers": ["console"]},
+    "root": {
+        "level": "INFO", 
+        # "handlers": ["console", 'file']
+        'handlers': ['console']
+    },
 }
 
 REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
@@ -339,9 +353,8 @@ SOCIALACCOUNT_FORMS = {"signup": "django_prod_shop.users.forms.UserSocialSignupF
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
+        #"rest_framework.authentication.SessionAuthentication",
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

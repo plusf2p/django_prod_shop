@@ -1,7 +1,7 @@
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from django_prod_shop.users.models import Profile
@@ -10,6 +10,10 @@ from django_prod_shop.products.models import Product, Category
 
 class CartAPITest(APITestCase):
     def setUp(self):
+        self.client = APIClient()
+        self.anon_client = APIClient()
+        self.admin_client = APIClient()
+
         ### Users ####
 
         # Регистрация пользователей
@@ -33,7 +37,7 @@ class CartAPITest(APITestCase):
             'password1': 'admin12345',
             'password2': 'admin12345',
         }
-        self.client.post(reverse('users:register'), data=self.admin_user_data)
+        self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
 
         # Назначение пользователя админ правами
         self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
@@ -44,7 +48,7 @@ class CartAPITest(APITestCase):
         admin_user.save()
 
         # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
+        response = self.admin_client.post(reverse('users:token_access'), data={
             'email': self.admin_user_data.get('email'),
             'password': self.admin_user_data.get('password1'),
         })
@@ -88,10 +92,10 @@ class CartAPITest(APITestCase):
         )
 
         # Добавление товаров в корзину анонимно
-        response = self.client.post(
+        response = self.anon_client.post(
             reverse('cart:cart-add-to-cart'), data=self.product_data
         )
-        response = self.client.post(
+        response = self.anon_client.post(
             reverse('cart:cart-add-to-cart'), data=self.product_data_2
         )
 
@@ -152,7 +156,7 @@ class CartAPITest(APITestCase):
         )
 
         # Получение всех заказов админом
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('orders:orders-list'), headers={'Authorization': f'Bearer {self.access_token_admin}'}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -179,14 +183,14 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         # Изменение заказа админом и проверка
-        response = self.client.post(
+        response = self.admin_client.post(
             reverse('orders:change_order_status', kwargs={'order_id': order_id}), 
             data=status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Проверка статуса у заказа админом
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('orders:orders-detail', kwargs={'order_id': order_id}), 
             headers={'Authorization': f'Bearer {self.access_token}'},
         )

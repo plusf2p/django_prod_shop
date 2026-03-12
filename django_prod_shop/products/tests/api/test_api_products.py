@@ -2,7 +2,7 @@ from django.urls import reverse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from django_prod_shop.users.models import Profile
@@ -11,6 +11,10 @@ from django_prod_shop.products.models import Product, Category
 
 class ProductAPITest(APITestCase):
     def setUp(self):
+        self.client = APIClient()
+        self.anon_client = APIClient()
+        self.admin_client = APIClient()
+
         ### Users ####
 
         # Регистрация обычного пользователя
@@ -21,13 +25,30 @@ class ProductAPITest(APITestCase):
         }
         self.client.post(reverse('users:register'), data=self.normal_user_data)
 
+        # Логин обычного пользователя и проверка
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        self.access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
         # Регистрация админа
         self.admin_user_data = {
             'email': 'admin@mail.ru',
             'password1': 'adminadmin',
             'password2': 'adminadmin',
         }
-        self.client.post(reverse('users:register'), data=self.admin_user_data)
+        self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
+
+        # Логин админа пользователя и проверка
+        response = self.admin_client.post(reverse('users:token_access'), data={
+            'email': self.admin_user_data.get('email'),
+            'password': self.admin_user_data.get('password1'),
+        })
+        self.access_token_admin = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
 
         # Получение профилей для будущего обращения к ним
         self.normal_profile = Profile.objects.get(user__email=self.normal_user_data['email'])
@@ -137,20 +158,13 @@ class ProductAPITest(APITestCase):
         }
 
         # Попытка создать товар анонимно
-        response = self.client.post(reverse('products:product-list'), data=product_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.anon_client.post(reverse('products:product-list'), data=product_data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка создать товар обычному пользователю
         response = self.client.post(
             reverse('products:product-list'), data=product_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -168,17 +182,10 @@ class ProductAPITest(APITestCase):
             'is_active': True,
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка создать товар админу
-        response = self.client.post(
+        response = self.admin_client.post(
             reverse('products:product-list'), data=product_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -203,9 +210,9 @@ class ProductAPITest(APITestCase):
             'description': 'Wrong description',
             'slug': 'wrong-title',
         }
-        response = self.client.post(
+        response = self.admin_client.post(
             reverse('products:product-list'), data=wrong_product_data,
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -228,22 +235,15 @@ class ProductAPITest(APITestCase):
         }
 
         # Попытка обновить товар анонимно
-        response = self.client.put(
+        response = self.anon_client.put(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), data=new_product_data
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка обновить товар обычному пользователю
         response = self.client.put(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            data=new_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_product_data, headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -261,17 +261,10 @@ class ProductAPITest(APITestCase):
             'is_active': True,
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка полностью обновить товар админу
-        response = self.client.put(
+        response = self.admin_client.put(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            data=new_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_product_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -291,14 +284,14 @@ class ProductAPITest(APITestCase):
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-        response = self.client.put(
+        response = self.admin_client.put(
             reverse('products:product-detail', kwargs={'slug': self.product2.slug}), 
-            data=wrong_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=wrong_product_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Неправильное взятие одного товара после полного обновления
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('products:product-detail', kwargs={'slug': wrong_product_data.get('slug')})
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -323,22 +316,15 @@ class ProductAPITest(APITestCase):
         }
 
         # Частичное обновление товара анонимным пользователем
-        response = self.client.patch(
+        response = self.anon_client.patch(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), data=new_product_data
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка частично обновить товар обычному пользователю
         response = self.client.patch(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}),  
-            data=new_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_product_data, headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
@@ -361,21 +347,14 @@ class ProductAPITest(APITestCase):
             'is_active': response.data.get('is_active'),
         }
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка частично обновить товар админу
-        response = self.client.patch(
+        response = self.admin_client.patch(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            data=new_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=new_product_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Взятие новоготтовара
+        # Взятие нового товара
         response = self.client.get(
             reverse('products:product-detail', kwargs={'slug': new_product_data.get('slug')})
         )
@@ -387,55 +366,41 @@ class ProductAPITest(APITestCase):
         self.assertEqual(response.data.get('reserved_quantity'), new_product_data.get('reserved_quantity'))
     
         # Неправильное частичное обновление одного товара
-        response = self.client.get(reverse('products:product-detail', kwargs={'slug': self.product1.slug}))
+        response = self.admin_client.get(reverse('products:product-detail', kwargs={'slug': self.product1.slug}))
         wrong_product_data = {
             'title': '',
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-        response = self.client.patch(
+        response = self.admin_client.patch(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            data=wrong_product_data, headers={'Authorization': f'Bearer {access_token}'},
+            data=wrong_product_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Неправильное взятие одного товара после частичного обновления
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('products:product-detail', kwargs={'slug': wrong_product_data.get('slug')})
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_delete_partial_product_by_anon_and_normal_user(self):
         # Удаление товара анонимным пользователем
-        response = self.client.delete(reverse('products:product-detail', kwargs={'slug': self.product1.slug}))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
+        response = self.anon_client.delete(reverse('products:product-detail', kwargs={'slug': self.product1.slug}))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Попытка удалить товар обычному пользователю
         response = self.client.delete(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_partial_product_by_admin_user(self):
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка удалить товар админу
-        response = self.client.delete(
+        response = self.admin_client.delete(
             reverse('products:product-detail', kwargs={'slug': self.product1.slug}), 
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -443,7 +408,7 @@ class ProductAPITest(APITestCase):
         response = self.client.get(reverse('products:product-detail', kwargs={'slug': self.product1.slug}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_in_active_product_by_anon_and_normal_users(self):
+    def test_get_inactive_product_by_anon_and_normal_users(self):
         # Создание неактивного товара
         in_active_product = Product.objects.create(
             title='Test in active product', category=self.category, quantity=15, reserved_quantity=15, 
@@ -451,40 +416,26 @@ class ProductAPITest(APITestCase):
         )
 
         # Получение неактивного товара анонимным пользователем
-        response = self.client.get(reverse('products:product-detail', kwargs={'slug': in_active_product.slug}))
+        response = self.anon_client.get(reverse('products:product-detail', kwargs={'slug': in_active_product.slug}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
 
         # Получение неактивного товара обычным пользователем
         response = self.client.get(
             reverse('products:product-detail', kwargs={'slug': in_active_product.slug}),
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token}'},
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_in_active_product_by_admin_user(self):
+    def test_get_inactive_product_by_admin_user(self):
         # Создание неактивного товара
         in_active_product = Product.objects.create(
             title='Test in active product', category=self.category, quantity=15, reserved_quantity=15, 
             description='3', slug='test-in-active-product', price=299, sell_counter=0, is_active=False,
         )
 
-        # Логин админа
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        access_token = response.data.get('access')
-
         # Попытка взять неактивный товар
-        response = self.client.get(
+        response = self.admin_client.get(
             reverse('products:product-detail', kwargs={'slug': in_active_product.slug}), 
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
