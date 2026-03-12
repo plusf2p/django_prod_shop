@@ -1,10 +1,12 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny, IsAdminUser
-from rest_framework import filters
+from rest_framework.response import Response
+from rest_framework import filters, status
 
 from django_filters import rest_framework as dj_filters
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from django.core.cache import cache
 
 from django_prod_shop.products.models import Category, Product
 from django_prod_shop.products.pagination import CustomPaginator
@@ -42,7 +44,7 @@ class ProductViewSet(ModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
     
-    @method_decorator(cache_page(60*60, key_prefix='product_detail'))
+    @method_decorator(cache_page(60*60, key_prefix='product_retrieve'))
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
@@ -52,7 +54,7 @@ class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.prefetch_related('products')
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title']
-    orderng_fileds = ['title']
+    ordering_fileds = ['title']
     ordering = ['title']
     lookup_field = 'slug'
 
@@ -67,7 +69,19 @@ class CategoryViewSet(ModelViewSet):
     @method_decorator(cache_page(60*60, key_prefix='category_list'))
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
-    
-    @method_decorator(cache_page(60*60, key_prefix='category_detail'))
+
+    @method_decorator(cache_page(60*60, key_prefix='category_retrieve'))
     def retrieve(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
+
+    # def retrieve(self, request, slug, *args, **kwargs):
+    #     cache_key = f'category_retrieve_{slug}'
+    #     cached_product = cache.get(cache_key)
+
+    #     if cached_product is not None:
+    #         return Response(cached_product, status=status.HTTP_200_OK)
+
+    #     response = super().retrieve(request, *args, **kwargs)
+    #     cache.set(cache_key, response.data, 60 * 60)
+
+    #     return Response(response.data, status=status.HTTP_200_OK)

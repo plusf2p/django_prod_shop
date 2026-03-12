@@ -63,4 +63,7 @@ class RegisterProfileSerializer(serializers.Serializer):
         user_model = get_user_model()
         new_user = user_model.objects.create_user(email=email, password=password1)
 
-        return Profile.objects.create(user=new_user, full_name='', phone='', city='', address='')
+        if not Profile.objects.filter(user=new_user).exists():
+            return Profile.objects.create(user=new_user, full_name='', phone='', city='', address='')
+        
+        return new_user.profile
