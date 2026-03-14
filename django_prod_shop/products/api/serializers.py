@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from django_prod_shop.reviews.api.serializers import ReviewSerializer
 from django_prod_shop.products.models import Category, Product
 
 
@@ -8,6 +9,7 @@ class ProductSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         source='category', queryset=Category.objects.all(), write_only=True,
     )
+    reviews = ReviewSerializer(many=True, read_only=True)
     rating = serializers.FloatField(read_only=True)
     reviews_count = serializers.IntegerField(read_only=True)
 
@@ -15,7 +17,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'title', 'category_name', 'category_id', 'quantity', 'reserved_quantity', 'image', 'description', 
-            'slug', 'price', 'created_at', 'rating', 'reviews_count', 'sell_counter', 'is_active',
+            'slug', 'price', 'reviews', 'created_at', 'rating', 'reviews_count', 'sell_counter', 'is_active',
             ]
         read_only_fields = ['created_at', 'sell_counter']
 

@@ -56,7 +56,9 @@ class ProductViewSet(ModelViewSet):
 
 class CategoryViewSet(ModelViewSet):
     serializer_class = CategorySerializer
-    queryset = Category.objects.prefetch_related('products')
+    queryset = Category.objects.prefetch_related(Prefetch('products', queryset=Product.objects.prefetch_related(
+        Prefetch('reviews', queryset=Review.objects.select_related('user'))
+    )))
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title']
     ordering_fileds = ['title']

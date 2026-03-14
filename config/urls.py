@@ -25,6 +25,7 @@ urlpatterns = [
     # Your stuff: custom urls includes go here
     path('orders/', include('django_prod_shop.orders.urls', namespace='orders')),
     path('cart/', include('django_prod_shop.cart.urls', namespace='cart')),
+    path('reviews/', include('django_prod_shop.reviews.urls', namespace='reviews')),
     path('', include('django_prod_shop.products.urls', namespace='products')),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

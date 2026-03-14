@@ -101,6 +101,7 @@ class CartAPITest(APITestCase):
 
         ### Orders ###
 
+        # Создание заказа
         self.order_data = {
             'full_name': 'Ildar Bbb',
             'address': 'Gagarina 20',
