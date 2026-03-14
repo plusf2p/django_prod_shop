@@ -344,17 +344,17 @@ class CartAPITest(APITestCase):
         # Новый неправильный отзыв
         wrong_new_review_data = {
             'product': self.product2.slug,
-            'rating': 5,
+            'rating': 10,
         }
 
         # Неправильная попытка частично изменить созданный отзыв админом и проверка
-        response = self.anon_client.put(
+        response = self.anon_client.patch(
             reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Неправильная попытка частично изменить созданный отзыв админом и проверка
-        response = self.admin_client.put(
+        response = self.admin_client.patch(
             reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
             headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
@@ -401,7 +401,7 @@ class CartAPITest(APITestCase):
         }
 
         # Правильная попытка частично изменить отзыв созданный обычным пользователем и проверка
-        response = self.client.put(
+        response = self.client.patch(
             reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
             headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
@@ -423,7 +423,7 @@ class CartAPITest(APITestCase):
         }
 
         # Правильная попытка частично изменить отзыв созданный админом и проверка
-        response = self.admin_client.put(
+        response = self.admin_client.patch(
             reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
             headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
