@@ -260,10 +260,10 @@ LOGGING = {
         "verbose": {
             "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
         },
-        'file_formatter': {
-            'format': '{levelname} {asctime} - {module} {process} {thread}: {message}',
-            'style': '{',
-        }
+        # 'file_formatter': {
+        #     'format': '{levelname} {asctime} - {module} {process} {thread}: {message}',
+        #     'style': '{',
+        # }
     },
     "handlers": {
         "console": {

@@ -15,6 +15,7 @@ class Order(models.Model):
     class StatusChoices(models.TextChoices):
         PENDING = 'pending', 'В процессе'
         PAID = 'paid', 'Оплачено'
+        DELIVERED = 'delivered', 'Доставлено'
         CANCELLED = 'cancelled', 'Отменено'
 
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
