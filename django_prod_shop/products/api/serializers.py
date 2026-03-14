@@ -8,14 +8,16 @@ class ProductSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         source='category', queryset=Category.objects.all(), write_only=True,
     )
+    rating = serializers.FloatField(read_only=True)
+    reviews_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Product
         fields = [
-            'title', 'category_name', 'category_id', 'quantity', 'reserved_quantity', 'image', 
-            'description', 'slug', 'price', 'created_at', 'sell_counter', 'is_active',
+            'title', 'category_name', 'category_id', 'quantity', 'reserved_quantity', 'image', 'description', 
+            'slug', 'price', 'created_at', 'rating', 'reviews_count', 'sell_counter', 'is_active',
             ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'sell_counter']
 
 
 class CategorySerializer(serializers.ModelSerializer):

@@ -71,11 +71,11 @@ class ProductAPITest(APITestCase):
         # Создание двух стартовых товаров
         self.product1 = Product.objects.create(
             title='Test title of first product', category=self.category, quantity=10, reserved_quantity=5, 
-            description='1', slug='test-title-of-first-product', price=400, sell_counter=50, is_active=True,
+            description='1', slug='test-title-of-first-product', price=400, is_active=True,
         )
         self.product2 = Product.objects.create(
             title='Test title of second product', category=self.category, quantity=100, reserved_quantity=10, 
-            description='2', slug='test-title-of-second-product', price=200, sell_counter=0, is_active=True,
+            description='2', slug='test-title-of-second-product', price=200, is_active=True,
         )
     
     def test_get_search_list(self):
@@ -153,7 +153,6 @@ class ProductAPITest(APITestCase):
             'description': 'Test create description',
             'slug': 'test-create-title',
             'price': 199,
-            'sell_counter': 0,
             'is_active': True,
         }
 
@@ -178,7 +177,6 @@ class ProductAPITest(APITestCase):
             'description': 'Test create description',
             'slug': 'test-create-title',
             'price': 199,
-            'sell_counter': 0,
             'is_active': True,
         }
 
@@ -230,7 +228,6 @@ class ProductAPITest(APITestCase):
             'description': 'New test create description',
             'slug': 'test-create-title',
             'price': 199,
-            'sell_counter': 0,
             'is_active': True,
         }
 
@@ -257,7 +254,6 @@ class ProductAPITest(APITestCase):
             'description': 'New test create description',
             'slug': 'test-create-title',
             'price': 199,
-            'sell_counter': 0,
             'is_active': True,
         }
 
@@ -311,7 +307,6 @@ class ProductAPITest(APITestCase):
             'description': response.data.get('description'),
             'slug': response.data.get('slug'),
             'price': 15,
-            'sell_counter': response.data.get('sell_counter'),
             'is_active': response.data.get('is_active'),
         }
 
@@ -343,7 +338,6 @@ class ProductAPITest(APITestCase):
             'description': response.data.get('description'),
             'slug': response.data.get('slug'),
             'price': 15,
-            'sell_counter': response.data.get('sell_counter'),
             'is_active': response.data.get('is_active'),
         }
 

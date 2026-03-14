@@ -4,10 +4,13 @@ from rest_framework.response import Response
 from rest_framework import filters, status
 
 from django_filters import rest_framework as dj_filters
+
+from django.db.models import Prefetch, Avg, Count
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.core.cache import cache
 
+from django_prod_shop.reviews.models import Review
 from django_prod_shop.products.models import Category, Product
 from django_prod_shop.products.pagination import CustomPaginator
 from django_prod_shop.products.filters import ProductFilter
@@ -16,7 +19,9 @@ from .serializers import CategorySerializer, ProductSerializer
 
 class ProductViewSet(ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.select_related('category')
+    queryset = Product.objects.select_related('category').prefetch_related(
+        Prefetch('reviews', queryset=Review.objects.select_related('user'))
+    ).annotate(rating=Avg('reviews__rating'), reviews_count=Count('reviews'))
     pagination_class = CustomPaginator
     filter_backends = [dj_filters.DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter
