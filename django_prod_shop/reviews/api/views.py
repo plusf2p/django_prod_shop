@@ -15,14 +15,6 @@ class ReviewViewSet(ModelViewSet):
     ordering = ['-created_at']
     lookup_field = 'id'
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-
-        if self.action in ['update', 'partial_update', 'destroy']:
-            qs = qs.filter(user=self.request.user)
-
-        return qs
-
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             permission_classes = [IsAuthenticated, IsAdminOrAuthor]
