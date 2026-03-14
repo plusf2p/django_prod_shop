@@ -22,6 +22,9 @@ class Review(models.Model):
         verbose_name = 'Отзыв'
         verbose_name_plural = 'Отзывы'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'user'], name='uniqe_rview')
+        ]
     
     def __str__(self) -> str:
         return f'Отзыв на {self.product.title} от {self.user.email}. {self.rating}/5'

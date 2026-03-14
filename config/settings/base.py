@@ -94,6 +94,7 @@ LOCAL_APPS = [
     'django_prod_shop.products',
     'django_prod_shop.cart',
     'django_prod_shop.orders',
+    'django_prod_shop.reviews',
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
