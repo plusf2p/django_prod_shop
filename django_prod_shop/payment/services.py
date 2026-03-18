@@ -20,17 +20,20 @@ def create_payment(request, order_id):
     amount = order.total_price_after_discount
     return_url = request.build_absolute_uri(reverse('payment:payment_completed'))
 
-    items = []
-    for item in order.items.all():
-        items.append({
-            "description": item.product.title[:100],
-            "quantity": str(item.quantity),
-            "amount": {
-                "value": str(item.cost),
-                "currency": "RUB",
-            },
-            "vat_code": '1',
-        })
+    with transaction.atomic():
+        items = []
+        for item in order.items.all():
+            quantity = item.quantity
+            items.append({
+                "description": item.product.title[:100],
+                "quantity": str(quantity),
+                "amount": {
+                    "value": str(item.cost),
+                    "currency": "RUB",
+                },
+                "vat_code": '1',
+            })
+            item.product.reserved_quantity += quantity
 
     email = request.user.email
     try:
@@ -61,3 +64,10 @@ def create_payment(request, order_id):
         "payment_id": payment.pk,
         "confirmation_url": yoo_payment.confirmation.confirmation_url,
     }, status=status.HTTP_200_OK)
+
+
+def confirm_payment(order_id, yk_id):
+    with transaction.atomic():
+        order = get_object_or_404(order_id)
+        order.items.delete()
+        
