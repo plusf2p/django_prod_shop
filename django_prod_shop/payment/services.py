@@ -85,6 +85,7 @@ def create_payment_service(request, order_id):
     except IntegrityError as e:
         return Response({'error': 'Не удалось создать платёж. Попробуйте ещё раз'}, status=status.HTTP_400_BAD_REQUEST)
     return Response({
+        'id': payment.pk,
         'payment_id': payment.payment_id,
         'confirmation_url': yoo_payment.confirmation.confirmation_url,
     }, status=status.HTTP_201_CREATED)

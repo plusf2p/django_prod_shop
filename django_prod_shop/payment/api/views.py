@@ -8,13 +8,13 @@ from django.urls import reverse
 
 from django_prod_shop.payment.models import Payment
 from django_prod_shop.payment.services import create_payment_service
-from django_prod_shop.payment.exceptions import NotEnoughStockError
 from .serializers import PaymentSerializer
 
 
 class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Payment.objects.select_related('order', 'order__user')
     serializer_class = PaymentSerializer
+    lookup_field = 'id'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -32,7 +32,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         
         return [permission() for permission in permission_classes]
 
-    @action(detail=False, methods=['post'], url_path=r'create/(?P<order_id>[^/.]+)', url_name='payment-create')
+    @action(detail=False, methods=['post'], url_path=r'create/(?P<order_id>[^/.]+)', url_name='create')
     def create_payment(self, request, order_id=None):
         return create_payment_service(request, order_id)
 
