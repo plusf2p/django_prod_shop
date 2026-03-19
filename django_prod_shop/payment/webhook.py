@@ -27,13 +27,6 @@ class YookassaWebhookAPIView(APIView):
         try:
             with transaction.atomic():
                 if status_event == "succeeded":
-                    payment.status = "succeeded"
-
-
-                    OrderObject.mark_order_as_paid(order_id=payment.order.id)
-                    OrderObject.set_order_yookassa_id(order_id=payment.order.id, yk_id=payment_id)
-
-
                     confirm_payment(order_id=payment.order.pk, yk_id=payment_id)
 
                     # if payment.order.release_task_id:
@@ -42,15 +35,7 @@ class YookassaWebhookAPIView(APIView):
                     #     payment.order.save()
 
                 elif status_event == "canceled":
-                    payment.status = "canceled"
-
-
-                    OrderObject.cancel_order(order_id=payment.order.id)
-                    OrderObject.set_order_yookassa_id(order_id=payment.order.id, yk_id=payment_id)
-
-
                     cancel_payment(order_id=payment.order.pk, yk_id=payment_id)
-                payment.save()
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({"status": "ok"}, status=status.HTTP_200_OK)

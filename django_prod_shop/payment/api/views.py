@@ -1,16 +1,17 @@
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin, DestroyModelMixin
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
-from django.shortcuts import redirect
+from django.urls import reverse
 
 from django_prod_shop.orders.models import Order
 from django_prod_shop.payment.services import create_payment
 from .serializers import PaymentSerializer
 
 
-class PaymentCreateView(CreateModelMixin, ListModelMixin, RetrieveModelMixin, GenericViewSet):
+class PaymentViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, DestroyModelMixin, GenericViewSet):
     queryset = Order.objects.all()
     serializer_class = PaymentSerializer
 
@@ -36,4 +37,4 @@ class PaymentCreateView(CreateModelMixin, ListModelMixin, RetrieveModelMixin, Ge
 
 @api_view(['GET'])
 def payment_completed(request):
-    return redirect('orders:orders-list')
+    return Response({'payment_status': 'completed', 'redirect_url': reverse('orders:orders-list')})

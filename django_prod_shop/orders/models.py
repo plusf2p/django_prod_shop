@@ -33,6 +33,7 @@ class Order(models.Model):
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING, verbose_name='Статус'
     )
+    yookassa_id = models.CharField(max_length=255, verbose_name='ID Платежа YooKassa')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
 

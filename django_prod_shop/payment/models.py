@@ -9,7 +9,7 @@ class Payment(models.Model):
         PAID = 'paid', 'Оплачено'
         CANCELLED = 'cancelled', 'Отменено'
 
-    order = models.ForeignKey(
+    order = models.OneToOneField(
         Order, null=True, on_delete=models.SET_NULL, related_name='payment', verbose_name='Заказ'
     )
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Количество')
@@ -20,7 +20,9 @@ class Payment(models.Model):
     class Meta:
         verbose_name = 'Платеж'
         verbose_name_plural = 'Платежи'
-        # Добавить уникальность order - payment
+        constaints = [
+            models.UniqueConstraint(fields=['order', 'payment_id'], name="unique_order_payment")
+        ]
 
     def __str__(self):
         return f'Заказ ({self.order.order_id}) - {self.status}'
