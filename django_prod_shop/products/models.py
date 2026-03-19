@@ -67,6 +67,10 @@ class Product(models.Model):
                 condition=models.Q(sell_counter__gte=0),
                 name='sell_counter_gte_0'
             ),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=models.F('reserved_quantity')),
+                name='product_reserved_quantity_lte_quantity',
+            ),
         ]
 
     def __str__(self):
