@@ -1,7 +1,7 @@
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.decorators import api_view, action
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 
 from django.urls import reverse
@@ -38,5 +38,10 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def payment_completed(request):
-    return Response({'payment_status': 'completed', 'redirect_url': reverse('orders:orders-list')})
+    return Response({
+        'payment_status': 'completed', 
+        'redirect_url': request.build_absolute_uri(reverse('orders:orders-list')),
+    })
