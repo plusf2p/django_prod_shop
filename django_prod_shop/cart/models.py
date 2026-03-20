@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from django_prod_shop.coupons.models import Coupon
 from django_prod_shop.products.models import Product
 
 
@@ -15,12 +16,16 @@ class Cart(models.Model):
         null=True, blank=True, verbose_name='Пользователь'
     )
     session_key = models.CharField(max_length=50, null=True, blank=True, verbose_name='Ключ сессии')
+    coupon = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Купон')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
 
     @property
     def total_price(self):
-        return sum(item.total_price for item in self.cart_items.all())
+        total = sum((item.total_price for item in self.cart_items.all()), Decimal('0'))
+        if self.coupon_id:
+            total = total - total * (Decimal(str(self.coupon.discount)) / Decimal('100'))
+        return total
 
     @property
     def total_quantity(self):

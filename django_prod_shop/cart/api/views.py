@@ -12,6 +12,7 @@ from django.core.cache import cache
 
 from django_prod_shop.cart.api.serializers import CartSerializer, CartAddSerializer, CartUpdateSerializer
 from django_prod_shop.cart.models import Cart, CartItem
+from django_prod_shop.coupons.models import Coupon
 from django_prod_shop.cart.services import get_or_create_cart, get_cart_cache_key
 
 
@@ -20,7 +21,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
     permission_classes = [AllowAny]
 
     def get_cart_queryset(self):
-        return Cart.objects.select_related('user').prefetch_related(
+        return Cart.objects.select_related('user').select_related('coupon').prefetch_related(
             Prefetch('cart_items', queryset=CartItem.objects.select_related('product'))
         )
 
@@ -118,3 +119,10 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         cart.cart_items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=False, methods=['get'], url_path=r'apply-coupon/(?P<code>[^/.]+)', url_name='apply-coupon')
+    def apply_coupon(self, request, code=None):
+        cart = self.get_cart()
+        cart.coupon = get_object_or_404(Coupon, code=code)
+        cart.save()
+        return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)

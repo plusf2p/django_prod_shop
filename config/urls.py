@@ -27,6 +27,7 @@ urlpatterns = [
     path('cart/', include('django_prod_shop.cart.urls', namespace='cart')),
     path('reviews/', include('django_prod_shop.reviews.urls', namespace='reviews')),
     path('payment/', include('django_prod_shop.payment.urls', namespace='payment')),
+    path('coupons/', include('django_prod_shop.coupons.urls', namespace='coupons')),
     path('', include('django_prod_shop.products.urls', namespace='products')),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

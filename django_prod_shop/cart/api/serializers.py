@@ -14,11 +14,14 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(source='cart_items', many=True, read_only=True)
+    coupon = serializers.CharField(source='coupon.code', read_only=True)
+    discount = serializers.IntegerField(source='coupon.discount', read_only=True)
+    total_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_quantity = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Cart
-        fields = ['items', 'total_price', 'total_quantity']
-        read_only_fields = ['total_price', 'total_quantity']
+        fields = ['items', 'total_price', 'total_quantity', 'coupon', 'discount']
 
 
 class CartAddSerializer(serializers.Serializer):
