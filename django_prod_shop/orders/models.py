@@ -1,11 +1,11 @@
 import uuid
-
-from django.core.validators import MaxValueValidator, MinValueValidator
-from django.contrib.auth import get_user_model
-from django.db import models
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
+from django.db import models
+
 from django_prod_shop.products.models import Product
+from django_prod_shop.coupons.models import Coupon
 
 
 user = get_user_model()
@@ -26,9 +26,7 @@ class Order(models.Model):
     phone = models.CharField(max_length=20, verbose_name='Телефон')
     address = models.CharField(max_length=250, verbose_name='Адрес')
     city = models.CharField(max_length=100, verbose_name='Город')
-    discount = models.IntegerField(
-        default=0, validators=[MaxValueValidator(100), MinValueValidator(0)], verbose_name='Скидка (%)'
-    )
+    coupon = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Купон')
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Общая стоимость')
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING, verbose_name='Статус'
@@ -54,8 +52,8 @@ class Order(models.Model):
     @property
     def discount_price(self):
         total_cost = self.total_price_before_discount
-        if self.discount:
-            return total_cost * (Decimal(self.discount) / Decimal('100'))
+        if self.coupon_id:
+            return total_cost * (Decimal(self.coupon.discount) / Decimal('100'))
         return Decimal('0.00')
 
     @property

@@ -40,7 +40,7 @@ class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, Generic
     def get_queryset(self):
         user = self.request.user
 
-        qs = Order.objects.select_related('user').prefetch_related(
+        qs = Order.objects.select_related('user').select_related('coupon').prefetch_related(
             Prefetch('items', queryset=OrderItem.objects.select_related('product'))
         )
         if user.is_staff:

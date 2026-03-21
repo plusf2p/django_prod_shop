@@ -101,13 +101,12 @@ class CartAPITest(APITestCase):
 
         ### Orders ###
 
-        # Создание заказа
+        # Заказ
         self.order_data = {
             'full_name': 'Ildar Bbb',
             'address': 'Gagarina 20',
             'city': 'Moscow',
             'phone': '+88005553535',
-            'discount': 50,
         }
 
     def test_worng_create_order_by_normal_users(self):
@@ -122,6 +121,10 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_right_create_order_and_get_it_by_anon_and_normal_users(self):
+        # Попытка создать заказ анонимно и проверка
+        response = self.anon_client.post(reverse('orders:orders-list'), data=self.order_data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
         # Cоздание заказа обычным пользователем и проверка
         response = self.client.post(
             reverse('orders:orders-list'), data=self.order_data, headers={'Authorization': f'Bearer {self.access_token}'}

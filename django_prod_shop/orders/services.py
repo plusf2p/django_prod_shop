@@ -11,7 +11,7 @@ from .models import Order, OrderItem
 
 @transaction.atomic
 def create_order(user, validated_data):
-    cart = Cart.objects.select_related('user').prefetch_related(
+    cart = Cart.objects.select_related('user').select_related('coupon').prefetch_related(
         Prefetch('cart_items', queryset=CartItem.objects.select_related('product'))
     ).filter(user=user).first()
 
@@ -20,6 +20,9 @@ def create_order(user, validated_data):
     cart_items = list(cart.cart_items.all())
     if not cart_items:
         raise ValidationError('Корзина пуста')
+    
+    if cart.coupon_id:
+        validated_data['coupon'] = cart.coupon
 
     order = Order.objects.create(user=user, **validated_data)
     total_before_discount = Decimal('0.00')
