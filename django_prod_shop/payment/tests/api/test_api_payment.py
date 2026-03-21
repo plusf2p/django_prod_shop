@@ -109,7 +109,6 @@ class CartAPITest(APITestCase):
             'address': 'Gagarina 20',
             'city': 'Moscow',
             'phone': '+88005553535',
-            'discount': 50,
         }
 
         # Cоздание заказа обычным пользователем

@@ -47,13 +47,15 @@ class OrderReadSerializer(serializers.ModelSerializer):
 
 
 class OrderWriteSerializer(serializers.ModelSerializer):
+    coupon = serializers.CharField(source='coupon.code', read_only=True)
+
     class Meta:
         model = Order
         fields = [
-            'order_id', 'full_name', 'phone', 'address', 'city',
+            'order_id', 'full_name', 'phone', 'address', 'city', 'coupon',
             'status', 'created_at', 'updated_at', 'total_price',
         ]
-        read_only_fields = ['order_id', 'status', 'created_at', 'updated_at', 'total_price']
+        read_only_fields = ['order_id', 'status', 'coupon', 'created_at', 'updated_at', 'total_price']
 
     def create(self, validated_data):
         return create_order(user=self.context['request'].user, validated_data=validated_data)

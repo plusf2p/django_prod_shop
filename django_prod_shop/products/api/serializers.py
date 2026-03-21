@@ -21,6 +21,27 @@ class ProductSerializer(serializers.ModelSerializer):
             ]
         read_only_fields = ['created_at', 'sell_counter']
 
+    def validate(self, attrs):
+        quantity = attrs.get('quantity')
+        reserved_quantity = attrs.get('reserved_quantity')
+
+        if quantity is None:
+            raise serializers.ValidationError({
+                'quantity': 'Укажите количество доступного товара'
+            })
+        
+        if reserved_quantity is None:
+            raise serializers.ValidationError({
+                'quantity': 'Укажите количество зарезервированного товара'
+            })
+
+        if attrs['quantity'] < attrs['reserved_quantity']:
+            raise serializers.ValidationError({
+                'quantity': 'Недостаточно товара на складе'
+            })
+
+        return attrs
+
 
 class CategorySerializer(serializers.ModelSerializer):
     products = ProductSerializer(many=True, read_only=True)

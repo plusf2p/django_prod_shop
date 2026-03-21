@@ -123,6 +123,9 @@ class CartViewSet(ListModelMixin, GenericViewSet):
     @action(detail=False, methods=['get'], url_path=r'apply-coupon/(?P<code>[^/.]+)', url_name='apply-coupon')
     def apply_coupon(self, request, code=None):
         cart = self.get_cart()
-        cart.coupon = get_object_or_404(Coupon, code=code)
+        coupon = get_object_or_404(Coupon, code=code)
+        if not coupon.is_active:
+            return Response({'error': 'Данный купон неактивен'}, status=status.HTTP_400_BAD_REQUEST)
+        cart.coupon = coupon
         cart.save()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)

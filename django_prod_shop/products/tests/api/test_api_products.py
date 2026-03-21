@@ -172,7 +172,7 @@ class ProductAPITest(APITestCase):
         product_data = {
             'title': 'Test create title',
             'category_id': self.category.pk,
-            'qauntity': 100,
+            'quantity': 100,
             'reserved_quantity': 50,
             'description': 'Test create description',
             'slug': 'test-create-title',
@@ -249,7 +249,7 @@ class ProductAPITest(APITestCase):
         new_product_data = {
             'title': 'New test create title',
             'category_id': self.category.pk,
-            'qauntity': 99,
+            'quantity': 99,
             'reserved_quantity': 0,
             'description': 'New test create description',
             'slug': 'test-create-title',
@@ -333,7 +333,7 @@ class ProductAPITest(APITestCase):
         new_product_data = {
             'title': response.data.get('title'),
             'category_id': category_pk,
-            'qauntity': response.data.get('quantity'),
+            'quantity': response.data.get('quantity'),
             'reserved_quantity': 5,
             'description': response.data.get('description'),
             'slug': response.data.get('slug'),

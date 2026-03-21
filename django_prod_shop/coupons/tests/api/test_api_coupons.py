@@ -123,6 +123,7 @@ class CartAPITest(APITestCase):
             'is_active': True,
         }
 
+        # Второй купон
         self.second_coupon = {
             'code': 'test2',
             'discount': '20',
@@ -163,6 +164,7 @@ class CartAPITest(APITestCase):
             'code': self.second_coupon.get('code'),
             'valid_from': timezone.now().date(),
             'valid_to': (timezone.now()+ timedelta(days=15)).date(),
+            'discount': 35,
             'is_active': False,
         }
 
@@ -174,7 +176,7 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         # Правильная попытка поностью обновить купон админом и проверка
-        response = self.client.put(
+        response = self.admin_client.put(
             reverse('coupons:coupons-detail', kwargs={'code': self.second_coupon.get('code')}),
             data=new_coupon_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
         )
@@ -246,7 +248,6 @@ class CartAPITest(APITestCase):
         # Неправильный купон
         wrong_coupon = {
             'code': 'test1',
-            'discount': '50',
             'valid_from': (timezone.now()+ timedelta(days=1)).date(),
             'valid_to': timezone.now().date(),
             'is_active': True,
@@ -268,30 +269,48 @@ class CartAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['code'], self.coupon.get('code'))
 
-    def test_wrong_apply_coupon_by_anon_user(self):
-        # Неправильная попытка применить купон анонимно и проверка
-        response = self.anon_client.get(reverse('cart:cart-add-to-cart'), data={'code': 123})
+    def test_wrong_apply_coupon_by_normal_and_admin_users(self):
+        # Отключенный купон
+        in_active_coupon = {
+            'code': 'is_active_coupon',
+            'discount': '20',
+            'valid_from': timezone.now().date(),
+            'valid_to': (timezone.now()+ timedelta(days=1)).date(),
+            'is_active': False,
+        }
+
+        # Создание второго купона
+        Coupon.objects.create(**in_active_coupon)
+
+        # Неправильная попытка применить купон обычныи пользователем и проверка
+        response = self.client.get(
+            reverse('cart:cart-apply-coupon', kwargs={'code': in_active_coupon.get('code')}),
+            headers={'Authorization': f'Bearer {self.access_token}'},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Неправильная попытка применить купон админом и проверка
+        response = self.admin_client.get(
+            reverse('cart:cart-apply-coupon', kwargs={'code': 123}),
+            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_right_apply_coupon_by_anon_user(self):
         # Правильная попытка применить купон анонимно и проверка
-        response = self.anon_client.get(reverse('cart:cart-add-to-cart'), data={'code': self.coupon.get('code')})
+        response = self.anon_client.get(reverse('cart:cart-apply-coupon', kwargs={'code': self.second_coupon.get('code')}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['coupon']['code'], self.coupon.get('code'))
+        self.assertEqual(response.data['coupon'], self.second_coupon.get('code'))
     
     def test_create_order_with_coupon_by_normal_user(self):
         # Применение купона обычным пользователем
-        response = self.anon_client.get(reverse('cart:cart-add-to-cart'), data={'code': self.coupon.get('code')})
+        response = self.client.get(
+            reverse('cart:cart-apply-coupon', kwargs={'code': self.second_coupon.get('code')}),
+            headers={'Authorization': f'Bearer {self.access_token}'},
+        )
 
-        # Cоздание заказа обычным пользователем
+        # Cоздание заказа обычным пользователем и проверка
         response = self.client.post(
             reverse('orders:orders-list'), data=self.order_data, headers={'Authorization': f'Bearer {self.access_token}'}
         )
-        order_id = response.data.get('order_id')
-
-        # Получение заказа обычным пользователем и проверка
-        response = self.client.get(
-            reverse('orders:orders-detail', kwargs={'order_id': order_id}), 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.data['coupon'], self.coupon.get('code'))
+        self.assertEqual(response.data['coupon'], self.second_coupon.get('code'))

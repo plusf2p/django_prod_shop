@@ -40,10 +40,13 @@ def create_order(user, validated_data):
 
     OrderItem.objects.bulk_create(order_items)
 
-    discount = total_before_discount * (Decimal(order.discount) / Decimal('100'))
+    if order.coupon_id:
+        discount = total_before_discount * (Decimal(order.coupon.discount) / Decimal('100'))
+    else:
+        discount = 0
     order.total_price = total_before_discount - discount
     order.save(update_fields=['total_price'])
-    
+
     cart.cart_items.all().delete()
     cart.delete()
 
