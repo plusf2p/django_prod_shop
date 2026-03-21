@@ -20,6 +20,9 @@ class Category(models.Model):
             models.Index(fields=['slug']),
             models.Index(fields=['created_at']),
         ]
+        permissions = [
+            ('manage_categories', 'Может изменять категории'),
+        ]
 
 
 class Product(models.Model):
@@ -71,6 +74,9 @@ class Product(models.Model):
                 condition=models.Q(quantity__gte=models.F('reserved_quantity')),
                 name='product_reserved_quantity_lte_quantity',
             ),
+        ]
+        permissions = [
+            ('manage_products', 'Может изменять товары'),
         ]
 
     def __str__(self):

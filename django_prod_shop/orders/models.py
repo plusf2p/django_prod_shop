@@ -41,6 +41,9 @@ class Order(models.Model):
         indexes = [
             models.Index(fields=['-created_at']),
         ]
+        permissions = [
+            ('manage_orders', 'Может изменять заказы'),
+        ]
 
     def __str__(self):
         return f'Заказ: {self.user}. ID: {self.pk}'

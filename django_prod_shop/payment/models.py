@@ -20,6 +20,9 @@ class Payment(models.Model):
     class Meta:
         verbose_name = 'Платеж'
         verbose_name_plural = 'Платежи'
+        permissions = [
+            ('manage_payments', 'Может изменять платежи'),
+        ]
 
     def __str__(self):
         if self.order and self.order.order_id:

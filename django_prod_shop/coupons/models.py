@@ -15,6 +15,9 @@ class Coupon(models.Model):
     class Meta:
         verbose_name = 'Купон'
         verbose_name_plural = 'Купоны'
+        permissions = [
+            ('manage_coupons', 'Может изменять купоны'),
+        ]
 
     def __str__(self):
         return f'Купон {self.code}. Скидка {self.discount}%'

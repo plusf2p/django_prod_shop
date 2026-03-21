@@ -25,6 +25,9 @@ class Review(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['product', 'user'], name='uniqe_rview')
         ]
+        permissions = [
+            ('manage_reviews', 'Может изменять отзывы'),
+        ]
     
     def __str__(self) -> str:
         return f'Отзыв на {self.product.title} от {self.user.email}. {self.rating}/5'
