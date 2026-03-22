@@ -1,5 +1,7 @@
-from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.management import call_command
 
 from django_prod_shop.users.models import Profile
 
@@ -8,6 +10,11 @@ from rest_framework.test import APITestCase, APIClient
 
 
 class UsersAPISessionTest(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        call_command('create_groups')
+
     def setUp(self):
         self.client = APIClient()
         self.anon_client = APIClient()
@@ -54,6 +61,8 @@ class UsersAPISessionTest(APITestCase):
         # Назначение пользователя админ правами
         user_model = get_user_model()
         admin_user = user_model.objects.get(pk=self.admin_profile.pk)
+        admin_group = Group.objects.get(name='Admin')
+        admin_user.groups.add(admin_group)
         admin_user.is_staff = True
         admin_user.is_superuser = True
         admin_user.save()
@@ -164,6 +173,11 @@ class UsersAPISessionTest(APITestCase):
 
 
 class UsersAPIJWTTest(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        call_command('create_groups')
+
     def setUp(self):
         self.client = APIClient()
         self.admin_client = APIClient()
@@ -193,6 +207,8 @@ class UsersAPIJWTTest(APITestCase):
         # Назначение пользователя админ правами
         user_model = get_user_model()
         admin_user = user_model.objects.get(pk=self.admin_profile.pk)
+        admin_group = Group.objects.get(name='Admin')
+        admin_user.groups.add(admin_group)
         admin_user.is_staff = True
         admin_user.is_superuser = True
         admin_user.save()

@@ -47,8 +47,8 @@ class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        
-        if self.action in ['retrieve', 'update', 'partial_update'] and not user.is_staff:
+
+        if (self.action in ['retrieve', 'update', 'partial_update']) and not user.has_perm('manage_profiles'):
             qs = qs.filter(user=user)
         
         return qs

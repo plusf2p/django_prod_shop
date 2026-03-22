@@ -2,6 +2,8 @@ import uuid
 
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.management import call_command
 
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
@@ -11,6 +13,11 @@ from django_prod_shop.products.models import Product, Category
 
 
 class CartAPITest(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        call_command('create_groups')
+
     def setUp(self):
         self.client = APIClient()
         self.anon_client = APIClient()
@@ -45,6 +52,8 @@ class CartAPITest(APITestCase):
         self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
         user_model = get_user_model()
         admin_user = user_model.objects.get(pk=self.admin_profile.pk)
+        admin_group = Group.objects.get(name='Admin')
+        admin_user.groups.add(admin_group)
         admin_user.is_staff = True
         admin_user.is_superuser = True
         admin_user.save()

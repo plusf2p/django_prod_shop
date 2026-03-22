@@ -50,11 +50,14 @@ class Command(BaseCommand):
         payment_delete = Permission.objects.get(codename='delete_payment')
         manage_payments = Permission.objects.get(codename='manage_payments')
 
+        # Профили
+        manage_profles = Permission.objects.get(codename='manage_profiles')
+
         ### Группы ###
 
         # Покупатель
-        customers, created = Group.objects.get_or_create(name='Customers')
-        customers.permissions.set([
+        customer, created = Group.objects.get_or_create(name='Customer')
+        customer.permissions.set([
             product_view,
 
             category_view,
@@ -157,6 +160,8 @@ class Command(BaseCommand):
             payment_change,
             payment_delete,
             manage_payments,
+
+            manage_profles,
         ])
 
         if created:

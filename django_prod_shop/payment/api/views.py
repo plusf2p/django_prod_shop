@@ -1,11 +1,12 @@
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 
 from django.urls import reverse
 
+from django_prod_shop.payment.permissions import CanChangePament
 from django_prod_shop.payment.models import Payment
 from django_prod_shop.payment.services import create_payment_service
 from .serializers import PaymentSerializer
@@ -19,7 +20,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
 
-        if self.request.user.is_staff:
+        if self.request.user.has_perm('payment.manage_payments'):
             return qs
         
         return qs.filter(order__user=self.request.user)
@@ -28,7 +29,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         if self.action in ['create_payment', 'retrieve']:
             permission_classes = [IsAuthenticated]
         else:
-            permission_classes = [IsAdminUser]
+            permission_classes = [CanChangePament]
         
         return [permission() for permission in permission_classes]
 

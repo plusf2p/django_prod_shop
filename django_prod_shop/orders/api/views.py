@@ -1,6 +1,6 @@
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,12 +12,13 @@ from django.views.decorators.vary import vary_on_headers
 from django.views.decorators.cache import cache_page
 from django.core.cache import cache
 
+from django_prod_shop.orders.permissions import CanChangeOrders
 from django_prod_shop.orders.models import Order, OrderItem
 from .serializers import OrderReadSerializer, OrderWriteSerializer
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([CanChangeOrders])
 def change_order_status_view(request, order_id):
     order = get_object_or_404(Order, order_id=order_id)
 
@@ -43,7 +44,7 @@ class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, Generic
         qs = Order.objects.select_related('user').select_related('coupon').prefetch_related(
             Prefetch('items', queryset=OrderItem.objects.select_related('product'))
         )
-        if user.is_staff:
+        if user.has_perm('orders.manage_orders'):
             return qs
         
         return qs.filter(user=user)

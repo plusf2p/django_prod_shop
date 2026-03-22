@@ -45,9 +45,12 @@ class Profile(Model):
     city = CharField(max_length=100, verbose_name='Город')
     address = CharField(max_length=255, verbose_name='Адрес')
 
-    def __str__(self):
-        return f'{self.full_name} - ({self.user})'
-    
     class Meta:
         verbose_name = 'Профиль'
         verbose_name_plural = 'Профили'
+        permissions = [
+            ('manage_profiles', 'Может изменять профили'),
+        ]
+
+    def __str__(self):
+        return f'{self.full_name} - ({self.user})'

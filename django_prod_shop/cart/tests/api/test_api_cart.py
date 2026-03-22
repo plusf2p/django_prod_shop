@@ -1,4 +1,5 @@
 from django.urls import reverse
+from django.core.management import call_command
 
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
@@ -7,6 +8,11 @@ from django_prod_shop.products.models import Product, Category
 
 
 class CartAPITest(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        call_command('create_groups')
+
     def setUp(self):
         self.client = APIClient()
         self.anon_client = APIClient()

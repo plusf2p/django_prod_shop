@@ -1,9 +1,9 @@
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.filters import OrderingFilter
 
 from django_prod_shop.reviews.models import Review
-from django_prod_shop.reviews.permissions import IsAdminOrAuthor
+from django_prod_shop.reviews.permissions import IsManagerOrAdminOrOrAuthor, IsManagerOrAdmin
 from .serializers import ReviewSerializer
 
 
@@ -17,13 +17,13 @@ class ReviewViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
-            permission_classes = [IsAuthenticated, IsAdminOrAuthor]
+            permission_classes = [IsManagerOrAdminOrOrAuthor]
         elif self.action == 'create':
             permission_classes = [IsAuthenticated]
         elif self.action == 'retrieve':
             permission_classes = [AllowAny]
         else:
-            permission_classes = [IsAdminUser]
+            permission_classes = [IsManagerOrAdmin]
 
         return [permission() for permission in permission_classes]
 
