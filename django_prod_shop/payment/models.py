@@ -3,12 +3,13 @@ from django.db import models
 from django_prod_shop.orders.models import Order
 
 
-class Payment(models.Model):
-    class StatusChoices(models.TextChoices):
-        PENDING = 'pending', 'В процессе'
-        PAID = 'paid', 'Оплачено'
-        CANCELLED = 'cancelled', 'Отменено'
+class StatusChoices(models.TextChoices):
+    PENDING = 'pending', 'В процессе'
+    PAID = 'paid', 'Оплачено'
+    CANCELLED = 'cancelled', 'Отменено'
 
+
+class Payment(models.Model):
     order = models.OneToOneField(
         Order, null=True, on_delete=models.SET_NULL, related_name='payment', verbose_name='Заказ'
     )
@@ -22,6 +23,10 @@ class Payment(models.Model):
         verbose_name_plural = 'Платежи'
         permissions = [
             ('manage_payments', 'Может изменять платежи'),
+        ]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='amount_gt_0'),
+            models.CheckConstraint(condition=models.Q(status__in=[choice.value for choice in StatusChoices]), name='status_in_status_choices'),
         ]
 
     def __str__(self):

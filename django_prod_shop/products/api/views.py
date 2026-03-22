@@ -1,7 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import filters, status
+from rest_framework import filters
 
 from django_filters import rest_framework as dj_filters
 
@@ -9,7 +8,6 @@ from django.db.models import Prefetch, Avg, Count
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
-from django.core.cache import cache
 
 from django_prod_shop.reviews.models import Review
 from django_prod_shop.products.models import Category, Product
@@ -87,15 +85,3 @@ class CategoryViewSet(ModelViewSet):
     @method_decorator(cache_page(60*60, key_prefix='category_retrieve'))
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
-
-    # def retrieve(self, request, slug, *args, **kwargs):
-    #     cache_key = f'category_retrieve_{slug}'
-    #     cached_product = cache.get(cache_key)
-
-    #     if cached_product is not None:
-    #         return Response(cached_product, status=status.HTTP_200_OK)
-
-    #     response = super().retrieve(request, *args, **kwargs)
-    #     cache.set(cache_key, response.data, 60 * 60)
-
-    #     return Response(response.data, status=status.HTTP_200_OK)

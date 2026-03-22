@@ -44,16 +44,25 @@ class RegisterProfileSerializer(serializers.Serializer):
     password1 = serializers.CharField(write_only=True, min_length=8)
     password2 = serializers.CharField(write_only=True, min_length=8)
     
-    def validate(self, data):
-        if data['password1'] != data['password2']:
-            raise serializers.ValidationError({'password2': 'Пароли не совпадают.'})
+    def validate(self, attrs):
+        password1 = attrs.get('password1')
+        password2 = attrs.get('password2')
+
+        if password1 is None:
+            raise serializers.ValidationError({'password1': 'Укажите пароль'})
+        
+        if password2 is None:
+            raise serializers.ValidationError({'password2': 'Укажите повтор пароля'})
+
+        if attrs['password1'] != attrs['password2']:
+            raise serializers.ValidationError({'password2': 'Пароли не совпадают'})
         
         user_model = get_user_model()
 
-        if user_model.objects.filter(email=data['email']).exists():
-            raise serializers.ValidationError({'email': 'Такой email уже существует.'})
+        if user_model.objects.filter(email=attrs['email']).exists():
+            raise serializers.ValidationError({'email': 'Такой email уже существует'})
 
-        return data
+        return attrs
     
     @transaction.atomic
     def create(self, validated_data):

@@ -11,13 +11,14 @@ from django_prod_shop.coupons.models import Coupon
 user = get_user_model()
 
 
-class Order(models.Model):
-    class StatusChoices(models.TextChoices):
-        PENDING = 'pending', 'В процессе'
-        PAID = 'paid', 'Оплачено'
-        DELIVERED = 'delivered', 'Доставлено'
-        CANCELLED = 'cancelled', 'Отменено'
+class StatusChoices(models.TextChoices):
+    PENDING = 'pending', 'В процессе'
+    PAID = 'paid', 'Оплачено'
+    DELIVERED = 'delivered', 'Доставлено'
+    CANCELLED = 'cancelled', 'Отменено'
 
+
+class Order(models.Model):
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         user, null=True, related_name='orders', on_delete=models.SET_NULL, verbose_name='Пользователь'
@@ -76,6 +77,9 @@ class OrderItem(models.Model):
 
     class Meta:
         verbose_name_plural = 'Товары заказа'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(price__gte=0), name='order_item_price_gte_0'),
+        ]
 
     def __str__(self):
         return f'{self.order} | {self.product} x ({self.quantity})'

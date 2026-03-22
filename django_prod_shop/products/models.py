@@ -56,11 +56,11 @@ class Product(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(price__gte=0),
-                name='price_gte_0'
+                name='product_price_gte_0'
             ),
             models.CheckConstraint(
                 condition=models.Q(quantity__gte=0),
-                name='quantity_gte_0'
+                name='product_quantity_gte_0'
             ),
             models.CheckConstraint(
                 condition=models.Q(reserved_quantity__gte=0),

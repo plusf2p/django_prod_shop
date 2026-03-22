@@ -68,7 +68,8 @@ class CartItem(models.Model):
             models.Index(fields=['product']),
         ]
         constraints = [
-            models.UniqueConstraint(fields=['cart', 'product'], name='unique_cart_product')
+            models.UniqueConstraint(fields=['cart', 'product'], name='unique_cart_product'),
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='quantity_gt_0'),
         ]
 
     def __str__(self):

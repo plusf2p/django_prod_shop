@@ -10,6 +10,20 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'product_title', 'quantity', 'total_price']
+    
+    def validate(self, attrs):
+        quantity = attrs.get('quantity')
+        
+        if quantity is None:
+            raise serializers.ValidationError('Укажите количество')
+
+        if quantity < 0:
+            raise serializers.ValidationError('Количество не может быть меньше 0')
+        
+        if quantity == 0:
+            raise serializers.ValidationError('Количество не может равняться 0')
+
+        return attrs
 
 
 class CartSerializer(serializers.ModelSerializer):

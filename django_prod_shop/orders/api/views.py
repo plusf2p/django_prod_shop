@@ -7,9 +7,6 @@ from rest_framework import status
 
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-from django.utils.decorators import method_decorator
-from django.views.decorators.vary import vary_on_headers
-from django.views.decorators.cache import cache_page
 from django.core.cache import cache
 
 from django_prod_shop.orders.permissions import CanChangeOrders

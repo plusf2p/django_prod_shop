@@ -5,6 +5,9 @@ from rest_framework.decorators import action, api_view, permission_classes, auth
 from rest_framework.response import Response
 
 from django.urls import reverse
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
 
 from django_prod_shop.payment.permissions import CanChangePament
 from django_prod_shop.payment.models import Payment
@@ -32,6 +35,16 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
             permission_classes = [CanChangePament]
         
         return [permission() for permission in permission_classes]
+
+    @method_decorator(vary_on_headers('Authorization'))
+    @method_decorator(cache_page(60*60, key_prefix='payment_list'))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @method_decorator(vary_on_headers('Authorization'))
+    @method_decorator(cache_page(60*60, key_prefix='payment_retrieve'))
+    def retrieve(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], url_path=r'create/(?P<order_id>[^/.]+)', url_name='create')
     def create_payment(self, request, order_id=None):

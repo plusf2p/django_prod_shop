@@ -43,6 +43,12 @@ class Command(BaseCommand):
         order_delete = Permission.objects.get(codename='delete_order')
         manage_orders = Permission.objects.get(codename='manage_orders')
 
+        # Элементы заказа
+        orderitem_view = Permission.objects.get(codename='view_orderitem')
+        orderitem_add = Permission.objects.get(codename='add_orderitem')
+        orderitem_change = Permission.objects.get(codename='change_orderitem')
+        orderitem_delete = Permission.objects.get(codename='delete_orderitem')
+
         # Платежи
         payment_view = Permission.objects.get(codename='view_payment')
         payment_add = Permission.objects.get(codename='add_payment')
@@ -50,8 +56,18 @@ class Command(BaseCommand):
         payment_delete = Permission.objects.get(codename='delete_payment')
         manage_payments = Permission.objects.get(codename='manage_payments')
 
+        # Пользователи
+        user_view = Permission.objects.get(codename='view_user')
+        user_add = Permission.objects.get(codename='add_user')
+        user_change = Permission.objects.get(codename='change_user')
+        user_delete = Permission.objects.get(codename='delete_user')
+
         # Профили
-        manage_profles = Permission.objects.get(codename='manage_profiles')
+        profile_view = Permission.objects.get(codename='view_profile', content_type__model='profile', content_type__app_label='users',)
+        profile_add = Permission.objects.get(codename='add_profile', content_type__model='profile', content_type__app_label='users',)
+        profile_change = Permission.objects.get(codename='change_profile', content_type__model='profile', content_type__app_label='users',)
+        profile_delete = Permission.objects.get(codename='delete_profile', content_type__model='profile', content_type__app_label='users',)
+        manage_profiles = Permission.objects.get(codename='manage_profiles')
 
         ### Группы ###
 
@@ -74,7 +90,7 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(
-                self.style.SUCCESS('Роль Customer (Покупатель) уже существует.')
+                self.style.ERROR('Роль Customer (Покупатель) уже существует.')
             )
 
         # Менеджер
@@ -119,7 +135,7 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(
-                self.style.SUCCESS('Роль Manager (Менеджер) уже существует.')
+                self.style.ERROR('Роль Manager (Менеджер) уже существует.')
             )
 
         # Админ
@@ -155,13 +171,27 @@ class Command(BaseCommand):
             order_delete,
             manage_orders,
 
+            orderitem_view,
+            orderitem_add,
+            orderitem_change,
+            orderitem_delete,
+
             payment_view,
             payment_add,
             payment_change,
             payment_delete,
             manage_payments,
 
-            manage_profles,
+            user_view,
+            user_add,
+            user_change,
+            user_delete,
+
+            profile_view,
+            profile_add,
+            profile_change,
+            profile_delete,
+            manage_profiles,
         ])
 
         if created:
@@ -170,5 +200,5 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(
-                self.style.SUCCESS('Роль Admin (Админ) уже существует.')
+                self.style.ERROR('Роль Admin (Админ) уже существует.')
             )

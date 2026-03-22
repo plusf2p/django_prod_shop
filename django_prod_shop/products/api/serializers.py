@@ -22,6 +22,14 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'sell_counter']
 
     def validate(self, attrs):
+        price = attrs.get('price')
+
+        if price is None:
+            raise serializers.ValidationError('Укажите цену')
+
+        if price < 0:
+            raise serializers.ValidationError('Цена не должна быть меньше 0')
+
         quantity = attrs.get('quantity')
         reserved_quantity = attrs.get('reserved_quantity')
 

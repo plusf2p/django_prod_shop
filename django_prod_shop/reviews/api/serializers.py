@@ -23,10 +23,20 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'product_title', 'user', 'created_at', 'updated_at']
 
     def validate(self, attrs):
+        rating = attrs.get('rating')
+
+        if rating is None:
+            raise serializers.ValidationError('Укажите рейтинг')
+
+        rating = attrs['rating']
+
+        if not (1 <= rating <= 5):
+            raise serializers.ValidationError('Рейтинг не может быть меньше 1 или больше 5')
+
         request = self.context['request']
         user = request.user
         product = attrs['product']
-        
+
         if self.instance is None:
             if Review.objects.filter(product=product, user=user).exists():
                 raise serializers.ValidationError('Вы уже оставляли отзыв на этот товаром')
