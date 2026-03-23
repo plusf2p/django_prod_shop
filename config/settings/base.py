@@ -381,10 +381,10 @@ REST_FRAMEWORK = {
         'user_sustained': '2000/day',
         'anon_sustained': '2000/day',
     },
-    'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
-    'DEFAULT_VERSION': 'v1',
-    'ALLOWED_VERSIONS': ['v1'],
-    'VERSION_PARAM': 'version',
+    # 'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
+    # 'DEFAULT_VERSION': 'v1',
+    # 'ALLOWED_VERSIONS': ['v1'],
+    # 'VERSION_PARAM': 'version',
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
