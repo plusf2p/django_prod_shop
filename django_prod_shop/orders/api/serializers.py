@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
+from django_prod_shop.orders.models import Order, OrderItem
 from django_prod_shop.orders.services import create_order
 
 
@@ -59,14 +59,3 @@ class OrderWriteSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return create_order(user=self.context['request'].user, validated_data=validated_data)
-    
-    def validate(self, attrs):
-        status = attrs.get('status')
-
-        if status is None:
-            raise serializers.ValidationError('Укажите статус')
-
-        if attrs['status'] not in [choice.value for choice in StatusChoices]:
-            raise serializers.ValidationError('Неверный статус заказа')
-
-        return attrs

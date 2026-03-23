@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 
 from django_prod_shop.orders.permissions import CanChangeOrders
-from django_prod_shop.orders.models import Order, OrderItem
+from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
 from .serializers import OrderReadSerializer, OrderWriteSerializer
 
 
@@ -20,7 +20,7 @@ def change_order_status_view(request, order_id):
     order = get_object_or_404(Order, order_id=order_id)
 
     order_status = request.data.get('status')
-    allowed_status = [choice[0] for choice in Order.StatusChoices.choices]
+    allowed_status = [choice.value for choice in StatusChoices]
     if order_status not in allowed_status:
         return Response({'error': 'Такого статуса не существует'}, status=status.HTTP_400_BAD_REQUEST)
 

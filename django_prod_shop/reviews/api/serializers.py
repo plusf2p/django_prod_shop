@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from django_prod_shop.orders.models import OrderItem, Order
+from django_prod_shop.orders.models import OrderItem, StatusChoices
 from django_prod_shop.products.models import Product
 from django_prod_shop.reviews.models import Review
 
@@ -26,12 +26,12 @@ class ReviewSerializer(serializers.ModelSerializer):
         rating = attrs.get('rating')
 
         if rating is None:
-            raise serializers.ValidationError('Укажите рейтинг')
+            raise serializers.ValidationError({'rating': 'Укажите рейтинг'})
 
         rating = attrs['rating']
 
         if not (1 <= rating <= 5):
-            raise serializers.ValidationError('Рейтинг не может быть меньше 1 или больше 5')
+            raise serializers.ValidationError({'rating': 'Рейтинг не может быть меньше 1 или больше 5'})
 
         request = self.context['request']
         user = request.user
@@ -42,7 +42,7 @@ class ReviewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('Вы уже оставляли отзыв на этот товаром')
 
         check_order_exists = OrderItem.objects.filter(
-            order__user=user, product=product, order__status=Order.StatusChoices.DELIVERED
+            order__user=user, product=product, order__status=StatusChoices.DELIVERED
         ).exists()
 
         if not check_order_exists and not user.is_staff:

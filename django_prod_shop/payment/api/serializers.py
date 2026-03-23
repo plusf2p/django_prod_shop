@@ -16,20 +16,20 @@ class PaymentSerializer(serializers.ModelSerializer):
         status = attrs.get('status')
 
         if status is None:
-            raise serializers.ValidationError('Укажите статус')
+            raise serializers.ValidationError({'status': 'Укажите статус'})
 
         if status not in [choice.value for choice in StatusChoices]:
-            raise serializers.ValidationError('Неверный статус платежа')
+            raise serializers.ValidationError({'status': 'Неверный статус платежа'})
         
         amount = attrs.get('amount')
 
         if amount is None:
-            raise serializers.ValidationError('Укажите цену')
+            raise serializers.ValidationError({'amount': 'Укажите цену'})
 
         if amount < 0:
-            raise serializers.ValidationError('Сумма не может быть меньше 0')
+            raise serializers.ValidationError({'amount': 'Сумма не может быть меньше 0'})
         
         if amount == 0:
-            raise serializers.ValidationError('Сумма не может быть равна 0')
+            raise serializers.ValidationError({'amount': 'Сумма не может быть равна 0'})
 
         return attrs

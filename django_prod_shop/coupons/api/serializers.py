@@ -9,16 +9,16 @@ class CouponSerializer(serializers.ModelSerializer):
         fields = ['code', 'discount', 'valid_from', 'valid_to', 'is_active']
 
     def validate(self, attrs):
-        validate_from = attrs.get('validate_from')
-        validate_to = attrs.get('validate_to')
+        valid_from = attrs.get('valid_from')
+        valid_to = attrs.get('valid_to')
 
-        if validate_from is None:
-            raise serializers.ValidationError('Укажите дату начала работы купона')
+        if valid_from is None:
+            raise serializers.ValidationError({'valid_from': 'Укажите дату начала работы купона'})
         
-        if validate_to is None:
-            raise serializers.ValidationError('Укажите дату конца работы купона')
+        if valid_to is None:
+            raise serializers.ValidationError({'valid_to': 'Укажите дату конца работы купона'})
             
-        if validate_from > validate_to:
-            raise serializers.ValidationError('Дата начала работы купона не может быть позже даты конца работы')
+        if valid_from > valid_to:
+            raise serializers.ValidationError({'valid_to': 'Дата начала работы купона не может быть позже даты конца работы'})
 
         return attrs

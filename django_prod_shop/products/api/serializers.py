@@ -25,10 +25,10 @@ class ProductSerializer(serializers.ModelSerializer):
         price = attrs.get('price')
 
         if price is None:
-            raise serializers.ValidationError('Укажите цену')
+            raise serializers.ValidationError({'price': 'Укажите цену'})
 
         if price < 0:
-            raise serializers.ValidationError('Цена не должна быть меньше 0')
+            raise serializers.ValidationError({'price': 'Цена не должна быть меньше 0'})
 
         quantity = attrs.get('quantity')
         reserved_quantity = attrs.get('reserved_quantity')
@@ -40,7 +40,7 @@ class ProductSerializer(serializers.ModelSerializer):
         
         if reserved_quantity is None:
             raise serializers.ValidationError({
-                'quantity': 'Укажите количество зарезервированного товара'
+                'reserved_quantity': 'Укажите количество зарезервированного товара'
             })
 
         if attrs['quantity'] < attrs['reserved_quantity']:

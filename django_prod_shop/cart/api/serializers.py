@@ -15,13 +15,13 @@ class CartItemSerializer(serializers.ModelSerializer):
         quantity = attrs.get('quantity')
         
         if quantity is None:
-            raise serializers.ValidationError('Укажите количество')
+            raise serializers.ValidationError({'quantity': 'Укажите количество'})
 
         if quantity < 0:
-            raise serializers.ValidationError('Количество не может быть меньше 0')
+            raise serializers.ValidationError({'quantity': 'Количество не может быть меньше 0'})
         
         if quantity == 0:
-            raise serializers.ValidationError('Количество не может равняться 0')
+            raise serializers.ValidationError({'quantity': 'Количество не может равняться 0'})
 
         return attrs
 
@@ -47,9 +47,13 @@ class CartAddSerializer(serializers.Serializer):
             product = Product.objects.get(slug=attrs['product_slug'], is_active=True)
         except Product.DoesNotExist:
             raise serializers.ValidationError({'product_slug' :'Такого товара не существует'})
-        
+            
+        quantity = attrs.get('quantity')
+        if quantity is None:
+            raise serializers.ValidationError({'quantity': 'Укажите количество'})
+
         available_quantity = product.quantity - product.reserved_quantity
-        if available_quantity < attrs['quantity']:
+        if available_quantity < quantity:
             raise serializers.ValidationError({
                 'quantity': 'Недостаточно товара на складе'
             })

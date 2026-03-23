@@ -9,8 +9,8 @@ from rest_framework.response import Response
 from yookassa import Configuration, Payment as YooPayment
 
 from django_prod_shop.products.models import Product
-from django_prod_shop.orders.models import Order, OrderItem
-from django_prod_shop.payment.models import Payment
+from django_prod_shop.orders.models import Order, OrderItem, StatusChoices as OrderStatusChoices
+from django_prod_shop.payment.models import Payment, StatusChoices as PaymentStatusChoices
 
 def create_payment_service(request, order_id):
     Configuration.account_id = settings.YOOKASSA_SHOP_ID
@@ -37,7 +37,7 @@ def create_payment_service(request, order_id):
     if Payment.objects.filter(order=order).exists():
         return Response({'error': 'У этого заказа уже есть платеж'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if order.status in [Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED, Order.StatusChoices.CANCELLED]:
+    if order.status in [OrderStatusChoices.PAID, OrderStatusChoices.DELIVERED, OrderStatusChoices.CANCELLED]:
         return Response({'error': 'Оплата для этого заказа недоступна'}, status=status.HTTP_400_BAD_REQUEST)
 
     amount = order.total_price_after_discount
@@ -80,7 +80,7 @@ def create_payment_service(request, order_id):
                 order=order,
                 amount=amount,
                 payment_id=yoo_payment.id,
-                status=Payment.StatusChoices.PENDING,
+                status=PaymentStatusChoices.PENDING,
             )
     except IntegrityError as e:
         return Response({'error': 'Не удалось создать платёж. Попробуйте ещё раз'}, status=status.HTTP_400_BAD_REQUEST)
@@ -101,10 +101,10 @@ def confirm_payment(order_id, yk_id):
         if payment is None:
             return
 
-        if payment.status in [Payment.StatusChoices.PAID, Payment.StatusChoices.CANCELLED]:
+        if payment.status in [PaymentStatusChoices.PAID, PaymentStatusChoices.CANCELLED]:
             return
 
-        order.status = Order.StatusChoices.PAID
+        order.status = OrderStatusChoices.PAID
         order.yookassa_id = yk_id
         order.save(update_fields=['status', 'yookassa_id'])
 
@@ -115,7 +115,7 @@ def confirm_payment(order_id, yk_id):
                 reserved_quantity=F('reserved_quantity') - quantity,
             )
 
-        payment.status = Payment.StatusChoices.PAID
+        payment.status = PaymentStatusChoices.PAID
         payment.save(update_fields=['status'])
 
 
@@ -129,10 +129,10 @@ def cancel_payment(order_id, yk_id):
         if payment is None:
             return
 
-        if payment.status in [Payment.StatusChoices.PAID, Payment.StatusChoices.CANCELLED]:
+        if payment.status in [PaymentStatusChoices.PAID, PaymentStatusChoices.CANCELLED]:
             return
 
-        order.status = Order.StatusChoices.CANCELLED
+        order.status = OrderStatusChoices.CANCELLED
         order.yookassa_id = yk_id
         order.save(update_fields=['status', 'yookassa_id'])
 
@@ -141,5 +141,5 @@ def cancel_payment(order_id, yk_id):
                 reserved_quantity=F('reserved_quantity') - item.quantity
             )
 
-        payment.status = Payment.StatusChoices.CANCELLED
+        payment.status = PaymentStatusChoices.CANCELLED
         payment.save(update_fields=['status'])
