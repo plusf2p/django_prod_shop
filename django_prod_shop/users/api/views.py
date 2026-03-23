@@ -5,6 +5,7 @@ from rest_framework.mixins import (ListModelMixin, RetrieveModelMixin, UpdateMod
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -31,12 +32,16 @@ class UserViewSet(RetrieveModelMixin, ListModelMixin, UpdateModelMixin, GenericV
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
 class RegisterViewSet(CreateModelMixin, GenericViewSet):
     queryset = Profile.objects.select_related('user')
     serializer_class = RegisterProfileSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'register'
 
 
 class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):

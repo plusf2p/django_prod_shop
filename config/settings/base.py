@@ -361,6 +361,30 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    'DEFAULT_THROTTLE_CLASSES': [
+        'django_prod_shop.users.throttles.BurstRateUserThrottle',
+        'django_prod_shop.users.throttles.SustainedRateUserThrottle',
+        'django_prod_shop.users.throttles.BurstRateAnonThrottle',
+        'django_prod_shop.users.throttles.SustainedRateAnonThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user_burst': '250/minute',
+        'anon_burst': '150/minute',
+
+        # if production
+        #'login': '5/minute',
+        #'register': '10/minute',
+        'login': '150/minute',
+        'register': '150/minute',
+
+        'user_sustained': '2000/day',
+        'anon_sustained': '2000/day',
+    },
+    'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
+    'DEFAULT_VERSION': 'v1',
+    'ALLOWED_VERSIONS': ['v1'],
+    'VERSION_PARAM': 'version',
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup

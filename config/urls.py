@@ -23,12 +23,12 @@ urlpatterns = [
     path("users/", include("django_prod_shop.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
-    path('orders/', include('django_prod_shop.orders.urls', namespace='orders')),
-    path('cart/', include('django_prod_shop.cart.urls', namespace='cart')),
-    path('reviews/', include('django_prod_shop.reviews.urls', namespace='reviews')),
-    path('payment/', include('django_prod_shop.payment.urls', namespace='payment')),
-    path('coupons/', include('django_prod_shop.coupons.urls', namespace='coupons')),
-    path('', include('django_prod_shop.products.urls', namespace='products')),
+    path('api/<str:version>/', include('django_prod_shop.orders.urls', namespace='orders')),
+    path('api/<str:version>/', include('django_prod_shop.cart.urls', namespace='cart')),
+    path('api/<str:version>/', include('django_prod_shop.reviews.urls', namespace='reviews')),
+    path('api/<str:version>/', include('django_prod_shop.payment.urls', namespace='payment')),
+    path('api/<str:version>/', include('django_prod_shop.coupons.urls', namespace='coupons')),
+    path('api/<str:version>/', include('django_prod_shop.products.urls', namespace='products')),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
