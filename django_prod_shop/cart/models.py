@@ -15,7 +15,7 @@ class Cart(models.Model):
         user, related_name='cart', on_delete=models.CASCADE,
         null=True, blank=True, verbose_name='Пользователь'
     )
-    session_key = models.CharField(max_length=50, null=True, blank=True, verbose_name='Ключ сессии')
+    session_key = models.CharField(max_length=50, null=True, blank=True, verbose_name='Ключ сессии', unique=True)
     coupon = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Купон')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
@@ -35,9 +35,7 @@ class Cart(models.Model):
         verbose_name_plural = 'Корзина'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['user']),
             models.Index(fields=['created_at']),
-            models.Index(fields=['session_key']),
         ]
 
     def __str__(self):

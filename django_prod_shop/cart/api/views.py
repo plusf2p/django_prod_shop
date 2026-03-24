@@ -125,7 +125,7 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart = self.get_cart()
         coupon = get_object_or_404(Coupon, code=code)
         if not coupon.is_active:
-            return Response({'error': 'Данный купон неактивен'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'code': 'Данный купон неактивен'}, status=status.HTTP_400_BAD_REQUEST)
         cart.coupon = coupon
         cart.save()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)

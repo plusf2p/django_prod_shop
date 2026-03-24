@@ -22,7 +22,7 @@ def change_order_status_view(request, order_id):
     order_status = request.data.get('status')
     allowed_status = [choice.value for choice in StatusChoices]
     if order_status not in allowed_status:
-        return Response({'error': 'Такого статуса не существует'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'status': 'Такого статуса не существует'}, status=status.HTTP_400_BAD_REQUEST)
 
     order.status = order_status
     order.save(update_fields=['status'])

@@ -19,7 +19,7 @@ def create_payment_service(request, order_id):
     email = request.user.email
     if not email:
         return Response(
-            {'error': 'У вас не указан email'}, status=status.HTTP_400_BAD_REQUEST,
+            {'email': 'У вас не указан email'}, status=status.HTTP_400_BAD_REQUEST,
         )
 
     return_url = request.build_absolute_uri(reverse('payment:payment_completed'))

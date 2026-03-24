@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import (ListModelMixin, RetrieveModelMixin, UpdateModelMixin, 
@@ -9,10 +11,13 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from django_prod_shop.cart.services import merge_cart
 from django_prod_shop.users.models import User, Profile
-
 from .serializers import (UserSerializer, ProfileSerializer, 
                           RegisterProfileSerializer, MyTokenObtainPairSerializer)
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserViewSet(RetrieveModelMixin, ListModelMixin, UpdateModelMixin, GenericViewSet):
@@ -34,6 +39,17 @@ class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'login'
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            merge_cart(request, user=serializer.user)
+        except Exception:
+            logger.exception('Слияние корзин при логине провалилось')
+
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 class RegisterViewSet(CreateModelMixin, GenericViewSet):

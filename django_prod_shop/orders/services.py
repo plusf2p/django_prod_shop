@@ -16,10 +16,10 @@ def create_order(user, validated_data):
     ).filter(user=user).first()
 
     if cart is None:
-        raise ValidationError('У пользователя нет корзины')
+        raise ValidationError({'error': 'У пользователя нет корзины'})
     cart_items = list(cart.cart_items.all())
     if not cart_items:
-        raise ValidationError('Корзина пуста')
+        raise ValidationError({'error': 'Корзина пуста'})
     
     if cart.coupon_id:
         validated_data['coupon'] = cart.coupon
