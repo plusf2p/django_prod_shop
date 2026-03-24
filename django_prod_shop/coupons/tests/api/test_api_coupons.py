@@ -13,7 +13,7 @@ from django_prod_shop.users.models import Profile
 from django_prod_shop.products.models import Product, Category
 from django_prod_shop.coupons.models import Coupon
 
-class CartAPITest(APITestCase):
+class CouponAPITest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()

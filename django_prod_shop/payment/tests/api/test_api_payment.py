@@ -12,7 +12,7 @@ from django_prod_shop.users.models import Profile
 from django_prod_shop.products.models import Product, Category
 
 
-class CartAPITest(APITestCase):
+class PaymentAPITest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()

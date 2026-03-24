@@ -424,3 +424,32 @@ class CartAPITest(APITestCase):
         # Проверка корзины обычным пользователем после очистки
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['items'], [])
+
+    def test_merge_cart_by_anon_to_normal_user(self):
+        # Создание запроса с товаром
+        product_data = {
+            'product_slug': self.product1.slug,
+            'quantity': 1,
+        }
+
+        # Добавление первого товара в корзину анонимно
+        response = self.anon_client.post(reverse('cart:cart-add-to-cart'), data=product_data)
+
+        # Логин и мердж корзины обычным анонимом (теперь уже обычным пользователем)
+        response = self.anon_client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        self.access_token = response.data.get('access')
+
+        # Проверка старой корзины анонимно
+        response = self.anon_client.get(reverse('cart:cart-list'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['items'], [])
+
+        # Проверка новой корзины через другую сессиию обычным пользователем
+        response = self.client.get(
+            reverse('cart:cart-list'), headers={'Authorization': f'Bearer {self.access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['items'][0]['product_title'], self.product1.title)
