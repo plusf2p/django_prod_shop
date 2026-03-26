@@ -92,7 +92,3 @@ INSTALLED_APPS += ["django_extensions"]
 CELERY_TASK_EAGER_PROPAGATES = True
 # Your stuff...
 # ------------------------------------------------------------------------------
-
-# YooKassa
-YOOKASSA_SHOP_ID=env('YOOKASSA_SHOP_ID')
-YOOKASSA_SECRET_KEY=env('YOOKASSA_SECRET_KEY')

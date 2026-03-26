@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
+from django.db import transaction
+
 from django_prod_shop.orders.models import Order, OrderItem
 from django_prod_shop.orders.services import create_order
+from django_prod_shop.orders.tasks import send_order_email
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -58,4 +61,7 @@ class OrderWriteSerializer(serializers.ModelSerializer):
         read_only_fields = ['order_id', 'status', 'coupon', 'created_at', 'updated_at', 'total_price']
 
     def create(self, validated_data):
-        return create_order(user=self.context['request'].user, validated_data=validated_data)
+        order =  create_order(user=self.context['request'].user, validated_data=validated_data)
+        transaction.on_commit(lambda: send_order_email.delay(str(order.order_id)))
+
+        return order

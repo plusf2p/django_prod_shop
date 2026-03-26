@@ -239,6 +239,12 @@ EMAIL_BACKEND = env(
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT = 5
 
+EMAIL_HOST = env.str('EMAIL_HOST', default='smtp.yandex.ru')
+EMAIL_PORT = env.int('EMAIL_PORT', default=465)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env.str('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = env.str('EMAIL_HOST_PASSWORD', '')
+
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL.
@@ -406,3 +412,10 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
+
+# YooKassa
+YOOKASSA_SHOP_ID = env.str('YOOKASSA_SHOP_ID')
+YOOKASSA_SECRET_KEY = env.str('YOOKASSA_SECRET_KEY')
+
+# Other
+SHOP_NAME = env.str('SHOP_NAME', default='Django Prod Shop')

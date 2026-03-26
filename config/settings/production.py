@@ -212,7 +212,3 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------
-
-# YooKassa PRODUCTION
-YOOKASSA_SHOP_ID=env('YOOKASSA_SHOP_ID')
-YOOKASSA_SECRET_KEY=env('YOOKASSA_SECRET_KEY')
