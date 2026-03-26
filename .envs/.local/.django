@@ -22,7 +22,8 @@ YOOKASSA_SECRET_KEY=test_YlDdCTACzIRg3_MnHbIoXvJea9fGrc0zQJw-UmtWlxM
 # Email
 EMAIL_HOST=smtp.yandex.ru
 EMAIL_PORT=465
-EMAIL_USE_TLS=True
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
 EMAIL_HOST_USER=pftwop@yandex.ru
 EMAIL_HOST_PASSWORD=vsblnkmuhpffiokj
 

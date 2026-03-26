@@ -1,10 +1,14 @@
 from celery import shared_task
+from celery.utils.log import get_task_logger
 
 from django.db.models import Prefetch
 from django.core.mail import send_mail
 from django.conf import settings
 
 from django_prod_shop.orders.models import Order, OrderItem
+
+
+logger = get_task_logger(__name__)
 
 
 @shared_task
@@ -36,8 +40,10 @@ def send_order_email(order_id):
         f'Телефон: {order.phone}',
         f'Адрес: {order.address}',
         f'Город: {order.city}\n',
-        'Спасбо за заказ!',
+        'Спасибо за заказ!',
     ])
+
+    logger.info('\n'.join(text))
 
     send_mail(
         subject=f'Заказ из магазина "{settings.SHOP_NAME}"',

@@ -13,9 +13,9 @@ router = DefaultRouter()
 router.register('profile', api_views.ProfileViewSet)
 
 urlpatterns = [
-    path('register/', api_views.RegisterViewSet.as_view({'post': 'create'}), name='register'),
-    path('token/', api_views.MyTokenObtainPairView.as_view(), name='token_access'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('users/register/', api_views.RegisterViewSet.as_view({'post': 'create'}), name='register'),
+    path('users/token/', api_views.MyTokenObtainPairView.as_view(), name='token_access'),
+    path('users/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 urlpatterns += router.urls
