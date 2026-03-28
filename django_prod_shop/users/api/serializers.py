@@ -1,4 +1,4 @@
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from rest_framework import serializers
@@ -76,3 +76,32 @@ class RegisterProfileSerializer(serializers.Serializer):
             return Profile.objects.create(user=new_user, full_name='', phone='', city='', address='')
         
         return new_user.profile
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password1 = serializers.CharField(write_only=True)
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate_old_password(self, value):
+        request = self.context['request']
+
+        if not request.user.check_password(value):
+            raise serializers.ValidationError({'old_password': 'Неверный старый пароль'})
+
+        return value
+
+    def validate(self, attrs):
+        new_password1 = attrs.get('new_password1')
+        new_password2 = attrs.get('new_password2')
+
+        if new_password1 is None:
+            raise serializers.ValidationError({'new_password1': 'Укажите новый пароль'})
+        
+        if new_password2 is None:
+            raise serializers.ValidationError({'new_password1': 'Укажите повтор пароля'})
+        
+        if new_password1 != new_password2:
+            raise serializers.ValidationError({'new_password2': 'Пароли не сопадают'})
+
+        return attrs

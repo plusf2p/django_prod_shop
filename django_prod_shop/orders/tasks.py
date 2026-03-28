@@ -43,7 +43,7 @@ def send_order_email(order_id):
         'Спасибо за заказ!',
     ])
 
-    logger.info('\n'.join(text))
+    # logger.info('\n'.join(text))
 
     send_mail(
         subject=f'Заказ из магазина "{settings.SHOP_NAME}"',

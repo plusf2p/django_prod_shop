@@ -14,6 +14,7 @@ router.register('profile', api_views.ProfileViewSet)
 
 urlpatterns = [
     path('users/register/', api_views.RegisterViewSet.as_view({'post': 'create'}), name='register'),
+    path('users/change-password/', api_views.ChangePasswordAPIView.as_view(), name='change_password'),
     path('users/token/', api_views.MyTokenObtainPairView.as_view(), name='token_access'),
     path('users/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

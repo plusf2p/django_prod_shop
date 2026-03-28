@@ -292,3 +292,84 @@ class UsersAPIJWTTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertContains(response, 'access')
         self.assertNotContains(response, 'refresh')
+
+    def test_right_change_password_and_login_by_normal_user(self):
+        # Логин обычного пользователя
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        access_token = response.data.get('access')
+
+        # Новый правильный пароль
+        new_password_data = {
+            'old_password': self.normal_user_data.get('password1'),
+            'new_password1': 'test_right_password_123',
+            'new_password2': 'test_right_password_123',
+        }
+
+        # Правильная смена пароля и проверка
+        response = self.client.post(
+            reverse('users:change_password'), data=new_password_data,
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['password'], 'Пароль успешно изменен')
+        access_token = response.data.get('access')
+
+        # Получение своего профиля с новым токеном и проверка
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Логин с новым паролем и проверка
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': new_password_data.get('new_password1'),
+        })
+        access_token = response.data.get('access')
+
+        # Получение своего профиля с новым токеном после логина и проверка
+        response = self.client.get(
+            reverse('users:profile-detail', kwargs={'pk': self.normal_profile.pk}),
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_wrong_change_password_and_login_by_normal_user(self):
+        # Логин обычного пользователя
+        response = self.client.post(reverse('users:token_access'), data={
+            'email': self.normal_user_data.get('email'),
+            'password': self.normal_user_data.get('password1'),
+        })
+        access_token = response.data.get('access')
+
+        # Новый неправильный пароль (новые пароли не совпадают)
+        wrong_new_password_data = {
+            'old_password': self.normal_user_data.get('password1'),
+            'new_password1': 'test_right_password_321',
+            'new_password2': 'test_right_password_123',
+        }
+
+        # Неправильная смена пароля и проверка
+        response = self.client.post(
+            reverse('users:change_password'), data=wrong_new_password_data,
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Новый неправильный пароль (неверный прошлый пароль)
+        wrong_new_password_data = {
+            'old_password': '123',
+            'new_password1': 'test_right_password_123',
+            'new_password2': 'test_right_password_123',
+        }
+
+        # Неправильная смена пароля и проверка
+        response = self.client.post(
+            reverse('users:change_password'), data=wrong_new_password_data,
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

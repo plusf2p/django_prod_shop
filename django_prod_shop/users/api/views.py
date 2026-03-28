@@ -1,20 +1,24 @@
 import logging
 
+from django.contrib.auth.hashers import check_password
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import (ListModelMixin, RetrieveModelMixin, UpdateModelMixin, 
                                    CreateModelMixin)
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
 
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from django_prod_shop.cart.services import merge_cart
 from django_prod_shop.users.models import User, Profile
-from .serializers import (UserSerializer, ProfileSerializer, 
-                          RegisterProfileSerializer, MyTokenObtainPairSerializer)
+from .serializers import (UserSerializer, ProfileSerializer, RegisterProfileSerializer, 
+                          MyTokenObtainPairSerializer, ChangePasswordSerializer)
 
 
 logger = logging.getLogger(__name__)
@@ -73,3 +77,22 @@ class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
             qs = qs.filter(user=user)
         
         return qs
+
+
+class ChangePasswordAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        new_password = serializer.validated_data['new_password1']
+        
+        request.user.set_password(new_password)
+        request.user.save()
+        refresh = RefreshToken.for_user(request.user)
+
+        return Response({
+            'password': 'Пароль успешно изменен',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
