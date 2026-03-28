@@ -105,3 +105,37 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({'new_password2': 'Пароли не сопадают'})
 
         return attrs
+
+
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField(write_only=True)
+
+    def validate_email(self, value):
+        user_model = get_user_model()
+
+        if not user_model.objects.filter(email=value).exists():
+            raise serializers.ValidationError({'email': 'Пользователя с таким email не существует'})
+            
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password1 = serializers.CharField(write_only=True)
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        new_password1 = attrs.get('new_password1')
+        new_password2 = attrs.get('new_password2')
+        
+        if new_password1 is None:
+            raise serializers.ValidationError({'new_password1': 'Укажите новый пароль'})
+        
+        if new_password2 is None:
+            raise serializers.ValidationError({'new_password1': 'Укажите повтор пароля'})
+        
+        if new_password1 != new_password2:
+            raise serializers.ValidationError({'new_password2': 'Пароли не сопадают'})
+
+        return attrs

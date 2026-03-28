@@ -379,11 +379,13 @@ REST_FRAMEWORK = {
         'user_burst': '250/minute',
         'anon_burst': '150/minute',
 
-        # if production
+        # if not tests
         #'login': '5/minute',
         #'register': '10/minute',
         'login': '150/minute',
         'register': '150/minute',
+        'password_reset': '5/hour',
+        'password_reset_confirm': '10/hour',
 
         'user_sustained': '2000/day',
         'anon_sustained': '2000/day',

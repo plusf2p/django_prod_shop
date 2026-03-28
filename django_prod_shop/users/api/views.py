@@ -1,6 +1,6 @@
 import logging
 
-from django.contrib.auth.hashers import check_password
+from django.db import transaction
 
 from rest_framework import status
 from rest_framework.decorators import action
@@ -17,8 +17,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from django_prod_shop.cart.services import merge_cart
 from django_prod_shop.users.models import User, Profile
+from django_prod_shop.users.tasks import send_reset_password_email
 from .serializers import (UserSerializer, ProfileSerializer, RegisterProfileSerializer, 
-                          MyTokenObtainPairSerializer, ChangePasswordSerializer)
+                          MyTokenObtainPairSerializer, ChangePasswordSerializer,
+                          PasswordResetSerializer)
 
 
 logger = logging.getLogger(__name__)
@@ -95,4 +97,36 @@ class ChangePasswordAPIView(APIView):
             'password': 'Пароль успешно изменен',
             'refresh': str(refresh),
             'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetAPIView(APIView):
+    permission_classes = [AllowAny]
+    scope = 'password_reset'
+    
+    def post(self, request, *args, **kwargs):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        
+        transaction.on_commit(lambda: send_reset_password_email.delay(email=email, request=request))
+
+        return Response({
+            'detail': 'Инструкции по восстановлению пароля отправлены на ваш email. Провертье папку СПАМ'
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmAPIView(APIView):
+    permission_classes = [AllowAny]
+    scope = 'password_reset_confirm'
+    
+    def post(self, request, *args, **kwargs):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        
+        transaction.on_commit(lambda: send_reset_password_email.delay(email=email, request=request))
+
+        return Response({
+            'detail': 'Инструкции по восстановлению пароля отправлены на ваш email. Провертье папку СПАМ'
         }, status=status.HTTP_200_OK)
