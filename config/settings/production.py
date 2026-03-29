@@ -212,3 +212,32 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    'DEFAULT_THROTTLE_CLASSES': [
+        'django_prod_shop.users.throttles.BurstRateUserThrottle',
+        'django_prod_shop.users.throttles.SustainedRateUserThrottle',
+        'django_prod_shop.users.throttles.BurstRateAnonThrottle',
+        'django_prod_shop.users.throttles.SustainedRateAnonThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user_burst': '155/minute',
+        'anon_burst': '130/minute',
+
+        'login': '5/minute',
+        'register': '3/hour',
+        'reset_password': '5/hour',
+        'reset_password_confirm': '10/hour',
+        'set_password': '5/hour',
+
+        'user_sustained': '1100/day',
+        'anon_sustained': '1100/day',
+    },
+}

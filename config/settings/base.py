@@ -26,7 +26,7 @@ DEBUG = env.bool("DJANGO_DEBUG", False)
 # In Windows, this must be set to your system time zone.
 TIME_ZONE = "Europe/Moscow"
 # https://docs.djangoproject.com/en/dev/ref/settings/#language-code
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "ru"
 # https://docs.djangoproject.com/en/dev/ref/settings/#languages
 # from django.utils.translation import gettext_lazy as _
 # LANGUAGES = [
@@ -86,6 +86,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt',
     'django_filters',
     'silk',
+    'djoser',
 ]
 
 LOCAL_APPS = [
@@ -245,6 +246,7 @@ EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False)
 EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=True)
 EMAIL_HOST_USER = env.str('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = env.str('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # ADMIN
 # ------------------------------------------------------------------------------
@@ -368,32 +370,6 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    'DEFAULT_THROTTLE_CLASSES': [
-        'django_prod_shop.users.throttles.BurstRateUserThrottle',
-        'django_prod_shop.users.throttles.SustainedRateUserThrottle',
-        'django_prod_shop.users.throttles.BurstRateAnonThrottle',
-        'django_prod_shop.users.throttles.SustainedRateAnonThrottle',
-        'rest_framework.throttling.ScopedRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'user_burst': '250/minute',
-        'anon_burst': '150/minute',
-
-        # if not tests
-        #'login': '5/minute',
-        #'register': '10/minute',
-        'login': '150/minute',
-        'register': '150/minute',
-        'password_reset': '5/hour',
-        'password_reset_confirm': '10/hour',
-
-        'user_sustained': '2000/day',
-        'anon_sustained': '2000/day',
-    },
-    # 'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',
-    # 'DEFAULT_VERSION': 'v1',
-    # 'ALLOWED_VERSIONS': ['v1'],
-    # 'VERSION_PARAM': 'version',
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
@@ -411,14 +387,38 @@ SPECTACULAR_SETTINGS = {
 # Your stuff...
 # ------------------------------------------------------------------------------
 
+SHOP_NAME = env.str('SHOP_NAME', default='Django Prod Shop')
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+DJOSER = {
+    'TOKEN_MODEL': None,
+    'LOGIN_FIELD': 'email',
+    'USER_CREATE_PASSWORD_RETYPE': True,
+    'SET_PASSWORD_RETYPE': True,
+    'PASSWORD_RESET_CONFIRM_RETYPE': True,
+    'SEND_ACTIVATION_EMAIL': True,
+    'SEND_CONFIRMATION_EMAIL': False,
+
+    'PASSWORD_RESET_CONFIRM_URL': 'auth/users/password-reset-confirm/{uid}/{token}/',
+    'ACTIVATION_URL': 'auth/users/activate/{uid}/{token}/',
+
+    'EMAIL': {
+        'activation': 'users.emails.CeleryActivationEmail',
+        'password_reset': 'users.emails.CeleryPasswordResetEmail',
+    },
+
+    'EMAIL_FRONTEND_PROTOCOL': 'http',
+    'EMAIL_FRONTEND_DOMAIN': 'localhost:8000',
+    'EMAIL_FRONTEND_SITE_NAME': SHOP_NAME,
 }
 
 # YooKassa
 YOOKASSA_SHOP_ID = env.str('YOOKASSA_SHOP_ID')
 YOOKASSA_SECRET_KEY = env.str('YOOKASSA_SECRET_KEY')
-
-# Other
-SHOP_NAME = env.str('SHOP_NAME', default='Django Prod Shop')

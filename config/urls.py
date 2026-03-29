@@ -24,7 +24,8 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     # path('api/<str:version>/', include('django_prod_shop.users.api_urls', namespace='users')),
-    path('', include('django_prod_shop.users.api_urls', namespace='users')),
+    path('auth/', include('django_prod_shop.users.api_urls.api_urls_users', namespace='users')),
+    path('', include('django_prod_shop.users.api_urls.api_urls_profile', namespace='profile')),
     path('', include('django_prod_shop.orders.urls', namespace='orders')),
     path('', include('django_prod_shop.cart.urls', namespace='cart')),
     path('', include('django_prod_shop.reviews.urls', namespace='reviews')),

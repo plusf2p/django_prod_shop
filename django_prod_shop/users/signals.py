@@ -12,6 +12,7 @@ def create_profile(sender, instance, created, **kwargs):
         group = Group.objects.get(name='Customer')
         instance.groups.add(group)
 
-        Profile.objects.create(
-            user=instance, full_name='', phone='', city='', address='',
-        )
+        if not Profile.objects.filter(user=instance).exists():
+            Profile.objects.create(
+                user=instance, full_name='', phone='', city='', address='',
+            )
