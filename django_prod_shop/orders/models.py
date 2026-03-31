@@ -78,6 +78,7 @@ class OrderItem(models.Model):
     class Meta:
         verbose_name_plural = 'Товары заказа'
         constraints = [
+            models.UniqueConstraint(fields=['order', 'product'], name='unique_order_product'),
             models.CheckConstraint(condition=models.Q(price__gte=0), name='order_item_price_gte_0'),
         ]
 

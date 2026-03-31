@@ -168,8 +168,8 @@ class Command(BaseCommand):
         except Group.DoesNotExist:
             raise CommandError('Ошибка при получении ролей. Введите команду для создания ролей или проверьте группы')
 
-        users['manager'].groups.add(manager_group)
-        users['admin'].groups.add(admin_group)
+        users['manager'].groups.set([manager_group])
+        users['admin'].groups.set([admin_group])
 
         self.stdout.write(self.style.SUCCESS('Роли тестовых пользователей назначены'))
 
@@ -339,8 +339,9 @@ class Command(BaseCommand):
         return products
 
     def _create_coupons(self):
-        valid_from = timezone.now().date()
-        valid_to = (timezone.now() + timedelta(days=7)).date()
+        now_date = timezone.now()
+        valid_from = now_date.date()
+        valid_to = (now_date + timedelta(days=7)).date()
 
         coupons_data = [
             {
@@ -459,7 +460,7 @@ class Command(BaseCommand):
         }
 
         orders_statuses = {
-            'first': OrderStatusChoices.PAID,
+            'first': OrderStatusChoices.PENDING,
             'second': OrderStatusChoices.DELIVERED,
             'manager': OrderStatusChoices.CANCELLED,
         }
