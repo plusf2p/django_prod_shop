@@ -40,7 +40,7 @@ class Product(models.Model):
     )
     description = models.TextField(blank=True, verbose_name='Описание')
     price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Цена')
-    created_at = models.DateTimeField(auto_now=True, verbose_name='Дата создания')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     is_active = models.BooleanField(default=True, verbose_name='Статус активности')
 
     class Meta:

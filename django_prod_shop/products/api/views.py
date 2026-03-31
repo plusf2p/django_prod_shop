@@ -14,14 +14,13 @@ from django_prod_shop.products.models import Category, Product
 from django_prod_shop.products.pagination import CustomPaginator
 from django_prod_shop.products.filters import ProductFilter
 from django_prod_shop.products.permissions import CanChangeProducts, CanChangeCategories
-from .serializers import CategorySerializer, ProductSerializer
+from .serializers import (CategoryDetailSerializer, CategoryListSerializer, CategoryWriteSerializer,
+                          ProductReadSerializer, ProductDetailSerializer, ProductWriteSerializer)
 
 
 class ProductViewSet(ModelViewSet):
-    serializer_class = ProductSerializer
-    queryset = Product.objects.select_related('category').prefetch_related(
-        Prefetch('reviews', queryset=Review.objects.select_related('user'))
-    ).annotate(rating=Avg('reviews__rating'), reviews_count=Count('reviews'))
+    serializer_class = ProductReadSerializer
+    queryset = Product.objects.select_related('category')
     pagination_class = CustomPaginator
     filter_backends = [dj_filters.DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter
@@ -32,6 +31,14 @@ class ProductViewSet(ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+
+        if self.action == 'list':
+            qs = qs.annotate(rating=Avg('reviews__rating'), reviews_count=Count('reviews'))
+        elif self.action == 'retrieve':
+            qs = qs.prefetch_related(
+                Prefetch('reviews', queryset=Review.objects.select_related('user'))
+            ).annotate(rating=Avg('reviews__rating'), reviews_count=Count('reviews'))
+        
         if not self.request.user.has_perm('products.manage_products'):
             return qs.filter(is_active=True)
         
@@ -45,6 +52,13 @@ class ProductViewSet(ModelViewSet):
         
         return [permission() for permission in permission_classes]
 
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ProductDetailSerializer
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return ProductWriteSerializer
+        return ProductReadSerializer
+
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='product_list'))
     def list(self, request, *args, **kwargs):
@@ -57,16 +71,27 @@ class ProductViewSet(ModelViewSet):
 
 
 class CategoryViewSet(ModelViewSet):
-    serializer_class = CategorySerializer
-    queryset = Category.objects.prefetch_related(
-        Prefetch('products', queryset=Product.objects.filter(is_active=True).prefetch_related(
-        Prefetch('reviews', queryset=Review.objects.select_related('user'))
-    )))
+    serializer_class = CategoryListSerializer
+    queryset = Category.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title']
-    ordering_fileds = ['title']
+    ordering_fields = ['title']
     ordering = ['title']
     lookup_field = 'slug'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        if self.action == 'retrieve':
+            qs = qs.prefetch_related(
+                Prefetch('products', queryset=Product.objects.select_related('category').annotate(
+                    rating=Avg('reviews__rating'), reviews_count=Count('reviews')
+            )))
+        
+        if not self.request.user.has_perm('products.manage_categories'):
+            return qs.filter(is_active=True)
+        
+        return qs
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -75,7 +100,14 @@ class CategoryViewSet(ModelViewSet):
             permission_classes = [AllowAny]
         
         return [permission() for permission in permission_classes]
-    
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CategoryListSerializer
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return CategoryWriteSerializer
+        return CategoryDetailSerializer
+
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='category_list'))
     def list(self, request, *args, **kwargs):

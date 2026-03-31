@@ -15,4 +15,5 @@ def delete_product_cache(sender, instance, **kwargs):
 def delete_category_cache(sender, instance, **kwargs):
     cache.delete_pattern('*category_list*')
     cache.delete_pattern('*category_retrieve*')
-    # cache.delete(f'category_retrieve_{instance.slug}')
+    cache.delete_pattern('*product_list*')
+    cache.delete_pattern('*product_retrieve*')
