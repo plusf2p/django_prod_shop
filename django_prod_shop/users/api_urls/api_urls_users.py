@@ -11,7 +11,7 @@ urlpatterns = [
     path(
         'users/',
         api_views.MyUserViewSet.as_view({'post': 'create'}),
-        name='user-create',
+        name='register',
     ),
     path(
         'users/activation/',

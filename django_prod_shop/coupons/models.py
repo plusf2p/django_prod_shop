@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 
 
 class Coupon(models.Model):
-    code = models.CharField(max_length=100, verbose_name='Купон')
+    code = models.CharField(max_length=100, verbose_name='Купон', unique=True)
     discount = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name='Скидка (%)'
     )

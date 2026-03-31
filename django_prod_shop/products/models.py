@@ -31,6 +31,7 @@ class Product(models.Model):
         Category, null=True, related_name='products',
         on_delete=models.SET_NULL, verbose_name='Категория'
     )
+    slug = models.SlugField(unique=True, verbose_name='Слаг')
     quantity = models.PositiveIntegerField(default=0, verbose_name='Количество')
     reserved_quantity = models.PositiveIntegerField(default=0, verbose_name='Зарезервировано')
     image = models.ImageField(
@@ -38,10 +39,8 @@ class Product(models.Model):
         null=True, blank=True, verbose_name='Картинка'
     )
     description = models.TextField(blank=True, verbose_name='Описание')
-    slug = models.SlugField(unique=True, verbose_name='Слаг')
     price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Цена')
     created_at = models.DateTimeField(auto_now=True, verbose_name='Дата создания')
-    sell_counter = models.PositiveIntegerField(default=0, verbose_name='Количество продаж')
     is_active = models.BooleanField(default=True, verbose_name='Статус активности')
 
     class Meta:
@@ -65,10 +64,6 @@ class Product(models.Model):
             models.CheckConstraint(
                 condition=models.Q(reserved_quantity__gte=0),
                 name='reserved_quantity_gte_0'
-            ),
-            models.CheckConstraint(
-                condition=models.Q(sell_counter__gte=0),
-                name='sell_counter_gte_0'
             ),
             models.CheckConstraint(
                 condition=models.Q(quantity__gte=models.F('reserved_quantity')),
