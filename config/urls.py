@@ -24,14 +24,14 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     # path('api/<str:version>/', include('django_prod_shop.users.api_urls', namespace='users')),
-    path('auth/', include('django_prod_shop.users.api_urls.api_urls_users', namespace='users')),
-    path('', include('django_prod_shop.users.api_urls.api_urls_profile', namespace='profile')),
-    path('', include('django_prod_shop.orders.urls', namespace='orders')),
-    path('', include('django_prod_shop.cart.urls', namespace='cart')),
-    path('', include('django_prod_shop.reviews.urls', namespace='reviews')),
-    path('', include('django_prod_shop.payment.urls', namespace='payment')),
-    path('', include('django_prod_shop.coupons.urls', namespace='coupons')),
-    path('', include('django_prod_shop.products.urls', namespace='products')),
+    path('api/auth/', include('django_prod_shop.users.api_urls.api_urls_users', namespace='users')),
+    path('api/', include('django_prod_shop.users.api_urls.api_urls_profile', namespace='profile')),
+    path('api/', include('django_prod_shop.orders.urls', namespace='orders')),
+    path('api/', include('django_prod_shop.cart.urls', namespace='cart')),
+    path('api/', include('django_prod_shop.reviews.urls', namespace='reviews')),
+    path('api/', include('django_prod_shop.payment.urls', namespace='payment')),
+    path('api/', include('django_prod_shop.coupons.urls', namespace='coupons')),
+    path('api/', include('django_prod_shop.products.urls', namespace='products')),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]

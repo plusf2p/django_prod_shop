@@ -34,8 +34,8 @@ class Product(models.Model):
     quantity = models.PositiveIntegerField(default=0, verbose_name='Количество')
     reserved_quantity = models.PositiveIntegerField(default=0, verbose_name='Зарезервировано')
     image = models.ImageField(
-        upload_to='img/products/', default='img/products/hero-bg.jpg',
-        null=True, blank=True, verbose_name='Картинка'
+        upload_to='img/products/%Y/%m/%d', default='img/products/default.webp',
+        null=True, blank=True, verbose_name='Картинка товара',
     )
     description = models.TextField(blank=True, verbose_name='Описание')
     price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Цена')
@@ -76,7 +76,3 @@ class Product(models.Model):
 
     def get_absolute_url(self):
         return reverse('shop_detail', kwargs={'slug': self.slug})
-
-    def clean(self):
-        if self.reserved_quantity > self.quantity:
-            raise ValidationError('Резерв не может превышать общее количество')

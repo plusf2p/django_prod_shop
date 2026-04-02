@@ -36,6 +36,15 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
+    def validate_image(self, value):
+        if value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError({'image': 'Максимальный размер изображения - 10 МБ'})
+
+        if value.content_type not in ['image/jpeg', 'image/png', 'image/webp']:
+            raise serializers.ValidationError({'image': 'Допустимы только форматы: JPG, PNG, WEBP'})
+
+        return value
+
     def validate(self, attrs):
         price = attrs.get('price', getattr(self.instance, 'price', None))
     

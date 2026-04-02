@@ -8,12 +8,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        if user.profile_id:
-            token['full_name'] = user.profile.full_name
-            token['email'] = user.email
-            token['phone'] = user.profile.phone
-            token['city'] = user.profile.city
-            token['address'] = user.profile.address
+        token['email'] = user.email
+
+        try:
+            profile = user.profile
+        except Profile.DoesNotExist:
+            pass
+        
+        token['full_name'] = profile.full_name
+        token['phone'] = profile.phone
+        token['city'] = profile.city
+        token['address'] = profile.address
 
         return token
 

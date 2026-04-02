@@ -1,3 +1,4 @@
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny
 from rest_framework import filters
@@ -22,6 +23,7 @@ class ProductViewSet(ModelViewSet):
     serializer_class = ProductReadSerializer
     queryset = Product.objects.select_related('category')
     pagination_class = CustomPaginator
+    parser_classes = [MultiPartParser, FormParser]
     filter_backends = [dj_filters.DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter
     search_fields = ['title', 'category__title']
