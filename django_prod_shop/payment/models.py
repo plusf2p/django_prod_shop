@@ -28,6 +28,10 @@ class Payment(models.Model):
             models.CheckConstraint(condition=models.Q(amount__gt=0), name='amount_gt_0'),
             models.CheckConstraint(condition=models.Q(status__in=[choice.value for choice in StatusChoices]), name='status_in_status_choices'),
         ]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         if self.order and self.order.order_id:

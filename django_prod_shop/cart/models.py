@@ -61,10 +61,6 @@ class CartItem(models.Model):
     class Meta:
         verbose_name_plural = 'Товары в корзине'
         ordering = ['cart']
-        indexes = [
-            models.Index(fields=['cart']),
-            models.Index(fields=['product']),
-        ]
         constraints = [
             models.UniqueConstraint(fields=['cart', 'product'], name='unique_cart_product'),
             models.CheckConstraint(condition=models.Q(quantity__gt=0), name='quantity_gt_0'),

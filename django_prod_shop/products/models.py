@@ -17,7 +17,6 @@ class Category(models.Model):
         verbose_name_plural = 'Категории'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['slug']),
             models.Index(fields=['created_at']),
         ]
         permissions = [
@@ -48,9 +47,7 @@ class Product(models.Model):
         verbose_name_plural = 'Товары'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['slug']),
             models.Index(fields=['created_at']),
-            models.Index(fields=['category']),
         ]
         constraints = [
             models.CheckConstraint(

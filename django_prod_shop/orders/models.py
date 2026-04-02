@@ -40,7 +40,7 @@ class Order(models.Model):
         verbose_name_plural = 'Заказы'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['-created_at']),
+            models.Index(fields=['created_at']),
         ]
         permissions = [
             ('manage_orders', 'Может изменять заказы'),
@@ -81,6 +81,7 @@ class OrderItem(models.Model):
             models.UniqueConstraint(fields=['order', 'product'], name='unique_order_product'),
             models.CheckConstraint(condition=models.Q(price__gte=0), name='order_item_price_gte_0'),
         ]
+        
 
     def __str__(self):
         return f'{self.order} | {self.product} x ({self.quantity})'

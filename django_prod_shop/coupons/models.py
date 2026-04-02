@@ -18,6 +18,11 @@ class Coupon(models.Model):
         permissions = [
             ('manage_coupons', 'Может изменять купоны'),
         ]
+        ordering = ['-valid_from']
+        indexes = [
+            models.Index(fields=['is_active']),
+            models.Index(fields=['valid_from']),
+        ]
 
     def __str__(self):
         return f'Купон {self.code}. Скидка {self.discount}%'

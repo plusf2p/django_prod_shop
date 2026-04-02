@@ -1,7 +1,5 @@
 from django.urls import path
 
-from rest_framework.routers import DefaultRouter
-
 from .views import user_detail_view, user_redirect_view, user_update_view
 
 

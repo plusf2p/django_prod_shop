@@ -28,6 +28,10 @@ class Review(models.Model):
         permissions = [
             ('manage_reviews', 'Может изменять отзывы'),
         ]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_at']),
+        ]
     
     def __str__(self) -> str:
         return f'Отзыв на {self.product.title} от {self.user.email}. {self.rating}/5'
