@@ -223,7 +223,7 @@ class UsersAPITest(APITestCase):
         normal_user.is_active = True
         normal_user.save(update_fields=['is_active'])
 
-        # Активация админа и назвачение суперюзером
+        # Активация админа и назначение суперюзером
         admin_user.is_active = True
         admin_user.is_staff = True
         admin_user.is_superuser = True

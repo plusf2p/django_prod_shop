@@ -9,8 +9,8 @@ from . import views
 app_name = 'products'
 
 router = DefaultRouter()
-router.register('products', api_views.ProductViewSet, basename='products')
-router.register('categories', api_views.CategoryViewSet, basename='categories')
+router.register('products', api_views.ProductViewSet, basename='product')
+router.register('categories', api_views.CategoryViewSet, basename='category')
 
 urlpatterns = [
     path('', views.index, name='index'),
