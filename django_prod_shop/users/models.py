@@ -39,11 +39,11 @@ class User(AbstractUser):
 
 
 class Profile(Model):
-    user = OneToOneField(User, on_delete=CASCADE, verbose_name='Пользователь', related_name='profile')
-    full_name = CharField(max_length=300, verbose_name='Имя')
-    phone = CharField(max_length=40, verbose_name='Телефон')
-    city = CharField(max_length=100, verbose_name='Город')
-    address = CharField(max_length=255, verbose_name='Адрес')
+    user = OneToOneField(User, on_delete=CASCADE, default='', verbose_name='Пользователь', related_name='profile')
+    full_name = CharField(max_length=300, default='', verbose_name='Имя')
+    phone = CharField(max_length=40, default='', verbose_name='Телефон')
+    city = CharField(max_length=100, default='', verbose_name='Город')
+    address = CharField(max_length=255, default='', verbose_name='Адрес')
 
     class Meta:
         verbose_name = 'Профиль'

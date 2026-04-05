@@ -10,15 +10,12 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         token['email'] = user.email
 
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
-            pass
+        profile = getattr(user, 'profile', None)
         
-        token['full_name'] = profile.full_name
-        token['phone'] = profile.phone
-        token['city'] = profile.city
-        token['address'] = profile.address
+        token['full_name'] = profile.full_name if profile else ''
+        token['phone'] = profile.phone if profile else ''
+        token['city'] = profile.city if profile else ''
+        token['address'] = profile.address if profile else ''
 
         return token
 

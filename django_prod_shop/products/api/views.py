@@ -85,14 +85,18 @@ class CategoryViewSet(ModelViewSet):
         qs = super().get_queryset()
 
         if self.action == 'retrieve':
+            products_qs = Product.objects.select_related('category').annotate(
+                rating=Avg('reviews__rating'),
+                reviews_count=Count('reviews'),
+            )
+
+            if not self.request.user.has_perm('products.manage_products'):
+                products_qs = products_qs.filter(is_active=True)
+
             qs = qs.prefetch_related(
-                Prefetch('products', queryset=Product.objects.select_related('category').annotate(
-                    rating=Avg('reviews__rating'), reviews_count=Count('reviews')
-            )))
-        
-        if not self.request.user.has_perm('products.manage_categories'):
-            return qs.filter(is_active=True)
-        
+                Prefetch('products', queryset=products_qs)
+            )
+
         return qs
 
     def get_permissions(self):
