@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from django.core.management import call_command
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
@@ -96,40 +94,40 @@ class ProductsAPITest(APITestCase):
     
     def test_get_products_search_list_by_anon_user(self):
         # Получение второго товара по поиску по полю title
-        response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?search=second')
+        serched_response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?search=second')
         
         # Проверка на совпадение и несовпадение товаров
-        self.assertContains(response, self.product2.title)
-        self.assertNotContains(response, self.product1.title)
+        self.assertContains(serched_response, self.product2.title)
+        self.assertNotContains(serched_response, self.product1.title)
 
         # Получение первого товара по поиску по полю title
-        response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?search=first')
+        serched_response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?search=first')
         
         # Проверка на совпадение и несовпадение товаров
-        self.assertContains(response, self.product1.title)
-        self.assertNotContains(response, self.product2.title)
+        self.assertContains(serched_response, self.product1.title)
+        self.assertNotContains(serched_response, self.product2.title)
 
     def test_get_products_filter_list_by_anon_user(self):
         # Получение второго товара по фильтру по полю price
-        response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?price_min=300')
+        filtered_response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?price_min=300')
         
         # Проверка на совпадение и несовпадение товаров
-        self.assertContains(response, self.product1.title)
-        self.assertNotContains(response, self.product2.title)
+        self.assertContains(filtered_response, self.product1.title)
+        self.assertNotContains(filtered_response, self.product2.title)
 
         # Получение второго товара по фильтру по полю slug
-        response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?slug=test-title-of-second-product')
+        filtered_response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?slug=test-title-of-second-product')
         
         # Проверка на совпадение и несовпадение товаров
-        self.assertContains(response, self.product2.title)
-        self.assertNotContains(response, self.product1.title)
+        self.assertContains(filtered_response, self.product2.title)
+        self.assertNotContains(filtered_response, self.product1.title)
 
         # Получение обоих товаров по фильтру по полю title
-        response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?title=test')
+        filtered_response = self.anon_client.get(f'{self.get_product_list_url_with_kwargs()}?title=test')
         
         # Проверка на совпадение обоих товаров
-        self.assertContains(response, self.product2.title)
-        self.assertContains(response, self.product1.title)
+        self.assertContains(filtered_response, self.product2.title)
+        self.assertContains(filtered_response, self.product1.title)
     
     def test_get_products_list_and_detail_products_by_anon_user(self):
         # Получение всех товаров
@@ -146,25 +144,25 @@ class ProductsAPITest(APITestCase):
         self.assertContains(list_response, self.product2.slug)
         self.assertContains(list_response, self.product2.price)
 
-        # Взятие одного товара
+        # Взятие товара
         detail_response = self.anon_client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug})
         )
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
 
-        # Проверка одного товара
+        # Проверка товара
         self.assertContains(detail_response, self.product1.title)
         self.assertContains(detail_response, self.product1.slug)
         self.assertContains(detail_response, self.product1.price)
 
-        # Неправильное взятие одного товара
+        # Неправильное взятие товара
         wrong_detail_response = self.anon_client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': 'wrong-slug'})
         )
         self.assertEqual(wrong_detail_response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_wrong_create_product_by_anon_and_normal_users(self):
-        # Создание одного товара
+        # Данные для создания товара
         product_data = {
             'title': 'Test create title',
             'category_id': self.category.pk,
@@ -199,7 +197,7 @@ class ProductsAPITest(APITestCase):
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_right_create_product_and_get_it_by_admin_user(self):
-        # Создание одного товара
+        # Данные для создания товара
         product_data = {
             'title': 'Test create title',
             'category_id': self.category.pk,
@@ -247,7 +245,7 @@ class ProductsAPITest(APITestCase):
         self.assertContains(new_product_response, new_product.price)
 
     def test_wrong_create_product_and_get_it_by_admin_user(self):
-        # Неправильное создание одного товара
+        # Неправильные данные для создания товара
         wrong_product_data = {
             'title': 'Wrong title',
             'description': 'Wrong description',
@@ -265,10 +263,10 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.admin_client, access_token)
 
         # Неправильная попытка создать товар админом
-        wrong_product_response = self.admin_client.post(
+        wrong_response = self.admin_client.post(
             self.get_product_list_url_with_kwargs(), data=wrong_product_data,
         )
-        self.assertEqual(wrong_product_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Взятие несуществующего товара после попытки создания и проверка
         wrog_product_detail_response = self.client.get(
@@ -277,7 +275,7 @@ class ProductsAPITest(APITestCase):
         self.assertEqual(wrog_product_detail_response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_put_product_by_anon_and_normal_users(self):
-        # Полное обновление одного товара
+        # Данные для полного обновления товара
         new_product_data = {
             'title': 'New test create title',
             'category_id': self.category.pk,
@@ -315,7 +313,7 @@ class ProductsAPITest(APITestCase):
 
     
     def test_right_put_product_by_admin_user(self):
-        # Полное обновление товара
+        # Данные для полного обновления товара
         new_product_data = {
             'title': 'New test create title',
             'category_id': self.category.pk,
@@ -338,11 +336,11 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.admin_client, access_token)
 
         # Полное обновление товара админом и проверка
-        put_product_response = self.admin_client.put(
+        put_response = self.admin_client.put(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}), 
             data=new_product_data,
         )
-        self.assertEqual(put_product_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(put_response.status_code, status.HTTP_200_OK)
         
         # Взятие нового товара и проверка
         product_response = self.client.get(
@@ -375,13 +373,13 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.admin_client, access_token)
 
         # Неправильное полное обновление товара админом и проверка
-        wrong_product_response = self.admin_client.put(
+        wrong_response = self.admin_client.put(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product2.slug}), 
             data=wrong_product_data,
         )
-        self.assertEqual(wrong_product_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Неправильное взятие одного товара после неправильного полного обновления
+        # Неправильное взятие товара после неправильного полного обновления
         wrong_response = self.admin_client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': wrong_product_data.get('slug')}),
         )
@@ -396,6 +394,8 @@ class ProductsAPITest(APITestCase):
         
         # Подготовка к частичному обновлению товара
         category_pk = get_object_or_404(Category, title=product_response.data['category_name']).pk
+
+        # Данные для частичного обновления товара
         new_product_data = {
             'title': product_response.data['title'],
             'category_id': category_pk,
@@ -440,6 +440,8 @@ class ProductsAPITest(APITestCase):
         
         # Подготовка к частичному обновлению товара
         category_pk = get_object_or_404(Category, title=product_response.data['category_name']).pk
+
+        # Данные для частичного обновления товара
         new_product_data = {
             'title': product_response.data['title'],
             'category_id': category_pk,
@@ -500,14 +502,14 @@ class ProductsAPITest(APITestCase):
         access_token = login_response.data['access']
         self.auth_header_client(self.admin_client, access_token)
 
-        # Неправильное частичное обновление одного товара и проверка
+        # Неправильное частичное обновление товара и проверка
         wrong_patch_response = self.admin_client.patch(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}), 
             data=wrong_product_data,
         )
         self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
 
-        # Неправильное взятие одного товара после частичного обновления и проверка
+        # Неправильное взятие товара после частичного обновления и проверка
         wrong_response = self.admin_client.get(
             reverse('products:product-detail', kwargs={'slug': wrong_product_data.get('slug')}),
         )
@@ -515,10 +517,10 @@ class ProductsAPITest(APITestCase):
 
     def test_delete_product_by_anon_and_normal_user(self):
         # Неправильное удаление товара анонимным пользователем и проверка
-        response = self.anon_client.delete(
+        wrong_anon_response = self.anon_client.delete(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         # Логин обычного пользователя
         login_response = self.login_user(
@@ -531,10 +533,10 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.client, access_token)
 
         # Неправильное удаление товара обычным пользователем и проверка
-        response = self.client.delete(
+        wrong_normal_response = self.client.delete(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
     
     def test_delete_product_by_admin_user(self):
         # Логин админа
@@ -548,16 +550,16 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.admin_client, access_token)
 
         # Удаление товара админом
-        response = self.admin_client.delete(
+        delete_response = self.admin_client.delete(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
 
         # Проверка на наличие товара после удаления
-        response = self.client.get(
+        deleted_response = self.client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': self.product1.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_in_active_product_by_anon_and_normal_users(self):
         # Создание неактивного товара
@@ -567,10 +569,10 @@ class ProductsAPITest(APITestCase):
         )
 
         # Неправильное получение неактивного товара анонимным пользователем и проверка
-        response = self.anon_client.get(
+        wrong_anon_response = self.anon_client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': in_active_product.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(wrong_anon_response.status_code, status.HTTP_404_NOT_FOUND)
 
         # Логин обычного пользователя
         login_response = self.login_user(
@@ -583,10 +585,10 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.client, access_token)
 
         # Неправильное получение неактивного товара обычным пользователем и проверка
-        response = self.client.get(
+        wrong_normal_response = self.client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': in_active_product.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(wrong_normal_response.status_code, status.HTTP_404_NOT_FOUND)
     
     def test_get_in_active_product_by_admin_user(self):
         # Создание неактивного товара
@@ -606,7 +608,7 @@ class ProductsAPITest(APITestCase):
         self.auth_header_client(self.admin_client, access_token)
 
         # Попытка взять неактивный товар
-        response = self.admin_client.get(
+        in_active_response = self.admin_client.get(
             self.get_product_detail_url_with_kwargs(kwargs={'slug': in_active_product.slug}),
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(in_active_response.status_code, status.HTTP_200_OK)
