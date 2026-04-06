@@ -8,6 +8,7 @@ from rest_framework import status
 
 from django_prod_shop.products.models import Category
 
+
 user_model = get_user_model()
 
 
@@ -170,6 +171,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -209,6 +211,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -270,6 +273,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -304,6 +308,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -377,6 +382,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -412,6 +418,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
@@ -459,6 +466,7 @@ class CategoriesAPITest(APITestCase):
         login_response = self.login_user(
             email=self.admin_user_data['email'],
             password=self.admin_user_data['password'],
+            client=self.admin_client,
         )
 
         # Получение access токена и добавление заголовка
