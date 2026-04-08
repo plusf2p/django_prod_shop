@@ -6,10 +6,11 @@ from django_prod_shop.cart.models import Cart, CartItem
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source='product.title', read_only=True)
+    product_slug = serializers.SlugRelatedField(source='product', slug_field='slug', read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ['id', 'product_title', 'quantity', 'total_price']
+        fields = ['id', 'product_title', 'product_slug', 'quantity', 'total_price']
     
     def validate(self, attrs):
         quantity = attrs.get('quantity')
