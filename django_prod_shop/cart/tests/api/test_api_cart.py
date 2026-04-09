@@ -151,11 +151,13 @@ class CartAPITest(APITestCase):
         # Получение пустой корзины анонимно и проверка
         cart_anon_response = self.get_cart(self.anon_client)
         self.assertEqual(cart_anon_response.data['items'], [])
+        self.assertEqual(cart_anon_response.data['total_quantity'], 0)
 
     def test_get_empty_cart_by_normal_user(self):
         # Получение пустой корзины обычным пользователем и проверка
         cart_normal_response = self.get_cart()
         self.assertEqual(cart_normal_response.data['items'], [])
+        self.assertEqual(cart_normal_response.data['total_quantity'], 0)
     
     def test_add_to_cart_right_products_twice_and_get_cart_by_anon_user(self):
         # Добавление товара в корзину анонимно
@@ -197,7 +199,6 @@ class CartAPITest(APITestCase):
         cart_anon_response = self.get_cart(self.anon_client)
 
         # Проверка корзины анонимно
-        self.assertEqual(cart_anon_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_anon_response, 
             product_slug=product_data['product_slug'],
@@ -220,10 +221,6 @@ class CartAPITest(APITestCase):
             'quantity': 1,
         }
 
-        # Получение пустой корзины обычным пользователем и проверка
-        cart_normal_response = self.get_cart()
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
-
         # Добавление товаров в корзину обычным пользователем и проверка
         add_to_cart_normal_response = self.client.post(
             self.add_to_cart_url, data=product_data, format='json',
@@ -238,7 +235,6 @@ class CartAPITest(APITestCase):
         cart_normal_response = self.get_cart()
 
         # Провкерка корзины обычным пользователем
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_normal_response, 
             product_slug=product_data['product_slug'],
@@ -267,7 +263,6 @@ class CartAPITest(APITestCase):
         cart_admin_response = self.get_cart(self.admin_client)
         
         # Проверка корзины админом
-        self.assertEqual(cart_admin_response.status_code, status.HTTP_200_OK)
         self.assertEqual(cart_admin_response.data['items'], [])
     
     def test_add_to_cart_products_and_update_it_to_0_and_get_cart_by_anon_user(self):
@@ -290,7 +285,6 @@ class CartAPITest(APITestCase):
         cart_anon_response = self.get_cart(self.anon_client)
 
         # Проверка корзины анонимно после обновления
-        self.assertEqual(cart_anon_response.status_code, status.HTTP_200_OK)
         self.assertEqual(cart_anon_response.data['items'], [])
 
     def test_add_to_cart_products_and_right_update_it_and_get_cart_by_normal_user(self):
@@ -313,7 +307,6 @@ class CartAPITest(APITestCase):
         cart_normal_response = self.get_cart()
 
         # Проверка корзины обычным пользователем после обновления
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_normal_response, 
             product_slug=self.product1.slug,
@@ -339,7 +332,6 @@ class CartAPITest(APITestCase):
         deleted_anon_response = self.get_cart(self.anon_client)
 
         # Проверка корзины анонимно после удаления
-        self.assertEqual(deleted_anon_response.status_code, status.HTTP_200_OK)
         self.assertEqual(deleted_anon_response.data['items'], [])
 
     def test_add_to_cart_products_and_right_remove_it_and_get_cart_by_normal_user(self):
@@ -370,7 +362,7 @@ class CartAPITest(APITestCase):
 
         # Неправильное удаление из корзины анонимно и проверка
         wrong_anon_response = self.anon_client.delete(
-            self.get_cart_remove_url_with_kwargs(item_id=50),
+            self.get_cart_remove_url_with_kwargs(item_id=50000),
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -378,7 +370,6 @@ class CartAPITest(APITestCase):
         cart_anon_response = self.get_cart(self.anon_client)
 
         # Проверка корзины анонимно после удаления
-        self.assertEqual(cart_anon_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_anon_response, 
             product_slug=self.product1.slug,
@@ -399,15 +390,13 @@ class CartAPITest(APITestCase):
         cart_normal_response = self.get_cart()
 
         # Проверка корзины обычным пользователем после удаления
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_normal_response, 
             product_slug=self.product1.slug,
             expected_quantity=1,
         )
-        
 
-    def test_clear_cart_by_anon_and_normal_users(self):
+    def test_clear_cart_by_anon_user(self):
         # Добавление товара в корзину анонимно
         self.add_to_cart_test_product(client=self.anon_client)
 
@@ -419,9 +408,9 @@ class CartAPITest(APITestCase):
         cart_anon_response = self.get_cart(self.anon_client)
         
         # Проверка корзины анонимно после очистки
-        self.assertEqual(cart_anon_response.status_code, status.HTTP_200_OK)
         self.assertEqual(cart_anon_response.data['items'], [])
 
+    def test_clear_cart_by_normal_user(self):
         # Добавление товара в корзину обычным пользователем
         self.add_to_cart_test_product()
 
@@ -433,7 +422,6 @@ class CartAPITest(APITestCase):
         cart_normal_response = self.get_cart()
 
         # Проверка корзины обычным пользователем после очистки
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
         self.assertEqual(cart_normal_response.data['items'], [])
         
     def test_merge_cart_by_anon_to_normal_user(self):
@@ -466,7 +454,6 @@ class CartAPITest(APITestCase):
 
         # Получение и проверка старой корзины анонимно
         cart_anon_response = self.get_cart(self.anon_client)
-        self.assertEqual(cart_anon_response.status_code, status.HTTP_200_OK)
         self.assertEqual(cart_anon_response.data['items'], [])
 
         # Привязка токена
@@ -474,7 +461,6 @@ class CartAPITest(APITestCase):
         
         # Проверка новой корзины через другую сессиию обычным пользователем
         cart_normal_response = self.get_cart(self.anon_client)
-        self.assertEqual(cart_normal_response.status_code, status.HTTP_200_OK)
         self.check_in_cart_product_with_quantity(
             cart=cart_normal_response, product_slug=self.product1.slug, expected_quantity=1,
         )

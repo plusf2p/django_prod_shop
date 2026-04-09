@@ -60,6 +60,18 @@ class CategoriesAPITest(APITestCase):
     def setUp(self):
         self.admin_client = APIClient()
         self.anon_client = APIClient()
+
+        # Авторизация админа и обычного пользователя
+        self.login_user(
+            email=self.normal_user_data['email'],
+            password=self.normal_user_data['password'],
+            client=self.client,
+        )
+        self.login_user(
+            email=self.admin_user_data['email'],
+            password=self.admin_user_data['password'],
+            client=self.admin_client,
+        )
     
     def get_category_list_url_with_kwargs(self, kwargs=None):
         return reverse('products:category-list', kwargs=kwargs)
@@ -80,11 +92,13 @@ class CategoriesAPITest(APITestCase):
             },
             format='json',
         )
-        return response
+    
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
 
-    def auth_header_client(self, client, access_token):
-        # Добавление Authorization к запросу
-        client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+        return response
 
     def test_get_categories_search_list_by_anon_user(self):
         # Получение второй категории по поиску по полю title
@@ -143,16 +157,6 @@ class CategoriesAPITest(APITestCase):
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # Логин обычного пользователя
-        login_response = self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.client, access_token)
-
         # Попытка создать категорию обычному пользователю
         wrong_normal_response = self.client.post(
             self.get_category_list_url_with_kwargs(), data=category_data,
@@ -166,17 +170,6 @@ class CategoriesAPITest(APITestCase):
             'description': 'Test create description',
             'slug': 'test-create-title',
         }
-
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
 
         # Создание категории админом и проверка
         response = self.admin_client.post(
@@ -207,17 +200,6 @@ class CategoriesAPITest(APITestCase):
             'slug': 'wrong-slug',
         }
 
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
-
         # Неправильное создание категории и проврека
         wrong_response = self.admin_client.post(
             self.get_category_list_url_with_kwargs(), data=wrong_category_data,
@@ -245,16 +227,6 @@ class CategoriesAPITest(APITestCase):
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # Логин обычного пользователя
-        login_response = self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.client, access_token)
-
         # Неправильное обновлкние категории обычным пользователем и проверка
         wrong_normal_response = self.client.put(
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category1.slug}),
@@ -268,17 +240,6 @@ class CategoriesAPITest(APITestCase):
             'description': 'New put description',
             'slug': 'new-put-test',
         }
-
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
 
         # Полное обновление категории админом и проверка
         put_response = self.admin_client.put(
@@ -303,17 +264,6 @@ class CategoriesAPITest(APITestCase):
             'description': 'Wrong description',
             'slug': 'wrong-slug',
         }
-
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
 
         wrong_response = self.admin_client.put(
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category2.slug}),
@@ -347,16 +297,6 @@ class CategoriesAPITest(APITestCase):
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # Логин обычного пользователя
-        login_response = self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.client, access_token)
-
         # Неправильное частичное обновление категории обычным пользователем и проверка
         wrong_normal_response = self.client.patch(
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category1.slug}),  
@@ -377,17 +317,6 @@ class CategoriesAPITest(APITestCase):
             'description': 'New put description',
             'slug': category_response.data['slug'],
         }
-
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
 
         # Частичное обновление категории админом и проверка
         patch_response = self.admin_client.patch(
@@ -414,17 +343,6 @@ class CategoriesAPITest(APITestCase):
             'slug': 'wrong-slug',
         }
 
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
-
         # Неправильное частичное обновление категории и проврека
         wrong_response = self.admin_client.patch(
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category2.slug}), 
@@ -444,16 +362,6 @@ class CategoriesAPITest(APITestCase):
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category1.slug}),
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
-        
-        # Логин обычного пользователя
-        login_response = self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.client, access_token)
 
         # Неправильное удаление категории обычным пользователем и проврка
         wrong_normal_response = self.client.delete(
@@ -462,17 +370,6 @@ class CategoriesAPITest(APITestCase):
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_category_by_admin_user(self):
-        # Логин админа
-        login_response = self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-
-        # Получение access токена и добавление заголовка
-        access_token = login_response.data['access']
-        self.auth_header_client(self.admin_client, access_token)
-
         # Удалиение категории админом
         delete_response = self.admin_client.delete(
             self.get_category_detail_url_with_kwargs(kwargs={'slug': self.category1.slug}), 
