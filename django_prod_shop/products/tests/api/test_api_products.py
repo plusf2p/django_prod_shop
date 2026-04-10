@@ -296,6 +296,29 @@ class ProductsAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=product_data['slug']).exists())
 
+    def test_wrong_create_product_and_get_it_by_admin_user(self):
+        # Неправильные данные для создания товара
+        wrong_product_data = {
+            'title': 'Wrong title',
+            'description': 'Wrong description',
+            'slug': 'wrong-title',
+        }
+
+        # Неправильная попытка создать товар админом и проверка
+        wrong_response = self.admin_client.post(
+            self.product_list_url, data=wrong_product_data,
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на неcоздание товара
+        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
+
+        # Взятие несуществующего товара после попытки создания и проверка
+        wrong_product_detail_response = self.client.get(
+            self.get_product_detail_url_with_slug(wrong_product_data['slug'])
+        )
+        self.assertEqual(wrong_product_detail_response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_right_create_product_and_get_it_by_admin_user(self):
         # Данные для создания товара
         product_data = self.update_product_data()
@@ -326,30 +349,7 @@ class ProductsAPITest(APITestCase):
             product_data=new_product_response.data, product=new_product,
         )
 
-    def test_wrong_create_product_and_get_it_by_admin_user(self):
-        # Неправильные данные для создания товара
-        wrong_product_data = {
-            'title': 'Wrong title',
-            'description': 'Wrong description',
-            'slug': 'wrong-title',
-        }
-
-        # Неправильная попытка создать товар админом и проверка
-        wrong_response = self.admin_client.post(
-            self.product_list_url, data=wrong_product_data,
-        )
-        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Проверка на неcоздание товара
-        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
-
-        # Взятие несуществующего товара после попытки создания и проверка
-        wrong_product_detail_response = self.client.get(
-            self.get_product_detail_url_with_slug(wrong_product_data['slug'])
-        )
-        self.assertEqual(wrong_product_detail_response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_wrong_create_product_with_price_lt_0(self):
+    def test_wrong_create_product_with_price_lt_0_by_admin_user(self):
         # Неправильные данные для создания товара
         wrong_product_data = self.update_product_data(price=-999)
 
@@ -362,7 +362,7 @@ class ProductsAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
     
-    def test_wrong_create_product_with_quantity_lt_reserved_quantity(self):
+    def test_wrong_create_product_with_quantity_lt_reserved_quantity_by_admin_user(self):
         # Неправильные данные для создания товара
         wrong_product_data = self.update_product_data(quantity=10, reserved_quantity=20)
 
@@ -404,7 +404,31 @@ class ProductsAPITest(APITestCase):
         # Проверка на необновление товара
         self.product1.refresh_from_db()
         self.assertFalse(Product.objects.filter(slug=new_product_data['slug']).exists())
-    
+
+    def test_wrong_put_product_by_admin_user(self):
+        # Неправильные данные для полного обновления
+        wrong_product_data = {
+            'description': 'Wrong description',
+            'slug': 'wrong-slug',
+        }
+
+        # Неправильное полное обновление товара админом и проверка
+        wrong_response = self.admin_client.put(
+            self.get_product_detail_url_with_slug(self.product1.slug), 
+            data=wrong_product_data,
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на необновление товара
+        self.product1.refresh_from_db()
+        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
+
+        # Неправильное взятие товара после неправильного полного обновления
+        wrong_response = self.admin_client.get(
+            self.get_product_detail_url_with_slug(wrong_product_data['slug']),
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)    
+
     def test_right_put_product_by_admin_user(self):
         # Данные для полного обновления товара
         new_product_data = self.update_product_data()
@@ -437,30 +461,6 @@ class ProductsAPITest(APITestCase):
         self.check_contains_product_in_created_product_response(
             created_product_data=product_response.data, product_data=new_product_data,
         )
-
-    def test_wrong_put_product_by_admin_user(self):
-        # Неправильные данные для полного обновления
-        wrong_product_data = {
-            'description': 'Wrong description',
-            'slug': 'wrong-slug',
-        }
-
-        # Неправильное полное обновление товара админом и проверка
-        wrong_response = self.admin_client.put(
-            self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=wrong_product_data,
-        )
-        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Проверка на необновление товара
-        self.product1.refresh_from_db()
-        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
-
-        # Неправильное взятие товара после неправильного полного обновления
-        wrong_response = self.admin_client.get(
-            self.get_product_detail_url_with_slug(wrong_product_data['slug']),
-        )
-        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
     
     def test_wrong_patch_product_by_anon_user(self):
         # Данные для частичного обновления товара
@@ -504,6 +504,31 @@ class ProductsAPITest(APITestCase):
             data={'price': self.product1.price, 'quantity': self.product1.quantity}
         )
 
+    def test_wrong_patch_product_by_admin_user(self):
+        # Неправильные данные для частичного обновления
+        wrong_product_data = {
+            'title': '',
+            'description': 'Wrong description',
+            'slug': 'wrong-slug',
+        }
+
+        # Неправильное частичное обновление товара и проверка
+        wrong_patch_response = self.admin_client.patch(
+            self.get_product_detail_url_with_slug(self.product1.slug), 
+            data=wrong_product_data,
+        )
+        self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на необновление товара в БД
+        self.product1.refresh_from_db()
+        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
+
+        # Неправильное взятие товара после частичного обновления и проверка
+        wrong_response = self.admin_client.get(
+            reverse('products:product-detail', kwargs={'slug': wrong_product_data['slug']}),
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_right_patch_product_by_admin_user(self):
         # Данные для частичного обновления товара
         new_product_data = {
@@ -532,32 +557,7 @@ class ProductsAPITest(APITestCase):
         self.assertEqual(Decimal(response.data['price']), Decimal(new_product_data['price']))
         self.assertEqual(response.data['quantity'], new_product_data['quantity'])
 
-    def test_wrong_patch_product_by_admin_user(self):
-        # Неправильные данные для частичного обновления
-        wrong_product_data = {
-            'title': '',
-            'description': 'Wrong description',
-            'slug': 'wrong-slug',
-        }
-
-        # Неправильное частичное обновление товара и проверка
-        wrong_patch_response = self.admin_client.patch(
-            self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=wrong_product_data,
-        )
-        self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Проверка на необновление товара в БД
-        self.product1.refresh_from_db()
-        self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
-
-        # Неправильное взятие товара после частичного обновления и проверка
-        wrong_response = self.admin_client.get(
-            reverse('products:product-detail', kwargs={'slug': wrong_product_data['slug']}),
-        )
-        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_delete_product_by_anon_user(self):
+    def test_wrong_delete_product_by_anon_user(self):
         # Неправильное удаление товара анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.delete(
             self.get_product_detail_url_with_slug(self.product1.slug),
@@ -567,7 +567,7 @@ class ProductsAPITest(APITestCase):
         # Проверка на неудаление товара в БД
         self.assertTrue(Product.objects.filter(slug=self.product1.slug).exists())
 
-    def test_delete_product_by_normal_user(self):
+    def test_wrong_delete_product_by_normal_user(self):
         # Неправильное удаление товара обычным пользователем и проверка
         wrong_normal_response = self.client.delete(
             self.get_product_detail_url_with_slug(self.product1.slug),
