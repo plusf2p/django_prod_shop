@@ -418,7 +418,6 @@ class ProductsAPITest(APITestCase):
             response.data.get('reserved_quantity'), new_product_data['reserved_quantity']
         )
 
-
     def test_wrong_patch_product_by_admin_user(self):
         # Неправильные данные для частичного обновления
         wrong_product_data = {
