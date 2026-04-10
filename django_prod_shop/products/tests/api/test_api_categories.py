@@ -1,7 +1,7 @@
 from uuid import uuid4
 
+from django.core.cache import cache
 from django.core.management import call_command
-from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
@@ -14,7 +14,7 @@ from django_prod_shop.products.models import Category
 user_model = get_user_model()
 
 
-class CategoriesAPITest(APITestCase):
+class CategoryAPITest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
@@ -61,6 +61,7 @@ class CategoriesAPITest(APITestCase):
         )
 
     def setUp(self):
+        cache.clear()
         self.admin_client = APIClient()
         self.anon_client = APIClient()
 
@@ -150,7 +151,7 @@ class CategoriesAPITest(APITestCase):
 
     def test_get_categories_search_list_by_anon_user(self):
         # Получение второй категории по поиску по полю title
-        searched_response = self.client.get(f'{self.category_list_url}?search=second')
+        searched_response = self.anon_client.get(f'{self.category_list_url}?search=second')
 
         # Получение слагов в ответе и проверка на совпадение и несовпадение категорий
         all_products_slugs = self.get_list_of_slugs(searched_response)
@@ -158,7 +159,7 @@ class CategoriesAPITest(APITestCase):
         self.assertNotIn(self.category1.slug, all_products_slugs)
 
         # Получение первой категории по поиску по полю title
-        searched_response = self.client.get(f'{self.category_list_url}?search=first')
+        searched_response = self.anon_client.get(f'{self.category_list_url}?search=first')
 
         # Получение слагов в ответе и проверка на совпадение и несовпадение категорий
         all_products_slugs = self.get_list_of_slugs(searched_response)
@@ -167,7 +168,7 @@ class CategoriesAPITest(APITestCase):
 
     def test_get_list_of_categories_by_anon_user(self):
         # Взятие всех категорий и проверка
-        list_response = self.client.get(self.category_list_url)
+        list_response = self.anon_client.get(self.category_list_url)
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
 
         # Получение и проверка первой категории
@@ -180,7 +181,7 @@ class CategoriesAPITest(APITestCase):
 
     def test_get_detail_category_by_anon_user(self):
         # Взятие категории и проверка
-        detail_response = self.client.get(
+        detail_response = self.anon_client.get(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
         )
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
@@ -194,9 +195,12 @@ class CategoriesAPITest(APITestCase):
 
         # Попытка создать категорию анонимно и проверка
         wrong_anon_response = self.anon_client.post(
-            self.category_list_url, data=category_data,
+            self.category_list_url, data=category_data, format='json',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Проверка на несоздание категории
+        self.assertFalse(Category.objects.filter(slug=category_data['slug']).exists())
 
     def test_wrong_create_category_by_normal_user(self):
         # Данные для создания категории
@@ -204,9 +208,12 @@ class CategoriesAPITest(APITestCase):
 
         # Попытка создать категорию обычному пользователю
         wrong_normal_response = self.client.post(
-            self.category_list_url, data=category_data,
+            self.category_list_url, data=category_data, format='json',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Проверка на несоздание категории
+        self.assertFalse(Category.objects.filter(slug=category_data['slug']).exists())
     
     def test_wrong_create_category_and_get_it_by_admin_user(self):
         # Неправильные данные для создания категории
@@ -216,7 +223,9 @@ class CategoriesAPITest(APITestCase):
         }
 
         # Неправильное создание категории и проврека
-        wrong_response = self.admin_client.post(self.category_list_url, data=wrong_category_data)
+        wrong_response = self.admin_client.post(
+            self.category_list_url, data=wrong_category_data, format='json',
+        )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Проверка на несоздание категории
@@ -233,7 +242,9 @@ class CategoriesAPITest(APITestCase):
         category_data = self.update_category_data()
 
         # Создание категории админом и проверка
-        created_response = self.admin_client.post(self.category_list_url, data=category_data)
+        created_response = self.admin_client.post(
+            self.category_list_url, data=category_data, format='json',
+        )
         self.assertEqual(created_response.status_code, status.HTTP_201_CREATED)
 
         # Проверка созданной категории
@@ -250,7 +261,7 @@ class CategoriesAPITest(APITestCase):
         )
         self.assertEqual(new_created_category_response.status_code, status.HTTP_200_OK)
 
-    def test_wrong_put_category_by_anon_and_normal_users(self):
+    def test_wrong_put_category_by_anon_user(self):
         # Данные для полного обновления категории
         new_category_data = self.update_category_data(
             title='New put test',
@@ -260,7 +271,7 @@ class CategoriesAPITest(APITestCase):
         # Неправильное польное обновлуние категории анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.put(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -277,7 +288,7 @@ class CategoriesAPITest(APITestCase):
         # Неправильное обновлкние категории обычным пользователем и проверка
         wrong_normal_response = self.client.put(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -294,7 +305,7 @@ class CategoriesAPITest(APITestCase):
         # Неправильное полное обновление админом
         wrong_response = self.admin_client.put(
             self.get_category_detail_url_with_slug(slug=self.category2.slug),
-            data=wrong_category_data,
+            data=wrong_category_data, format='json',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -320,7 +331,7 @@ class CategoriesAPITest(APITestCase):
         # Полное обновление категории админом и проверка
         put_response = self.admin_client.put(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(put_response.status_code, status.HTTP_200_OK)
 
@@ -345,15 +356,14 @@ class CategoriesAPITest(APITestCase):
 
     def test_wrong_patch_category_by_anon_user(self):
         # Данные для частичного обновления категории
-        new_category_data = self.update_category_data(
-            title='New put title',
-            slug=self.category1.slug,
-        )
+        new_category_data = {
+            'title': 'New put title',
+        }
         
         # Неправильное частичное обновление категории анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -366,15 +376,14 @@ class CategoriesAPITest(APITestCase):
 
     def test_wrong_patch_category_by_normal_user(self):
         # Данные для частичного обновления категории
-        new_category_data = self.update_category_data(
-            title='New put title',
-            slug=self.category1.slug,
-        )
+        new_category_data = {
+            'title': 'New put title',
+        }
 
         # Неправильное частичное обновление категории обычным пользователем и проверка
         wrong_normal_response = self.client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -394,7 +403,7 @@ class CategoriesAPITest(APITestCase):
         # Неправильное частичное обновление категории и проврека
         wrong_response = self.admin_client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=wrong_category_data,
+            data=wrong_category_data, format='json',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -413,15 +422,14 @@ class CategoriesAPITest(APITestCase):
 
     def test_right_patch_category_by_admin_user(self):
         # Данные для частичного обновления категории
-        new_category_data = self.update_category_data(
-            title='New title',
-            slug=self.category1.slug,
-        )
+        new_category_data = {
+            'title': 'New title',
+        }
 
         # Частичное обновление категории админом и проверка
         patch_response = self.admin_client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=new_category_data,
+            data=new_category_data, format='json',
         )
         self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
         

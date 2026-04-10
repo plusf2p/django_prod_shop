@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -67,6 +68,7 @@ class CartAPITest(APITestCase):
         )
 
     def setUp(self):
+        cache.clear()
         self.admin_client = APIClient()
         self.anon_client = APIClient()
 
