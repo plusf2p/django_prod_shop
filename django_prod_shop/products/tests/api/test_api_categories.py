@@ -149,7 +149,7 @@ class CategoryAPITest(APITestCase):
             self.assertTrue(hasattr(category, key))
             self.assertEqual(getattr(category, key), value)
 
-    def test_get_categories_search_list_by_anon_user(self):
+    def test_anon_user_can_search_categories(self):
         # Получение второй категории по поиску по полю title
         searched_response = self.anon_client.get(f'{self.category_list_url}?search=second')
 
@@ -166,7 +166,7 @@ class CategoryAPITest(APITestCase):
         self.assertIn(self.category1.slug, all_products_slugs)
         self.assertNotIn(self.category2.slug, all_products_slugs)
 
-    def test_get_list_of_categories_by_anon_user(self):
+    def test_anon_user_can_get_category_list(self):
         # Взятие всех категорий и проверка
         list_response = self.anon_client.get(self.category_list_url)
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
@@ -179,7 +179,7 @@ class CategoryAPITest(APITestCase):
         category2_data = self.get_item_in_list(categories_response=list_response, slug=self.category2.slug)
         self.check_contains_category_in_category_data(category_data=category2_data, category=self.category2)
 
-    def test_get_detail_category_by_anon_user(self):
+    def test_anon_user_can_get_category_detail(self):
         # Взятие категории и проверка
         detail_response = self.anon_client.get(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
@@ -189,7 +189,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на наличие в ответе
         self.check_contains_category_in_category_data(category_data=detail_response.data, category=self.category1)
     
-    def test_wrong_create_category_by_anon_user(self):
+    def test_anon_user_cannot_create_category(self):
         # Данные для создания категории
         category_data = self.update_category_data()
 
@@ -202,7 +202,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на несоздание категории
         self.assertFalse(Category.objects.filter(slug=category_data['slug']).exists())
 
-    def test_wrong_create_category_by_normal_user(self):
+    def test_normal_user_cannot_create_category(self):
         # Данные для создания категории
         category_data = self.update_category_data()
 
@@ -215,7 +215,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на несоздание категории
         self.assertFalse(Category.objects.filter(slug=category_data['slug']).exists())
     
-    def test_wrong_create_category_and_get_it_by_admin_user(self):
+    def test_admin_user_cannot_create_category_with_invalid_data(self):
         # Неправильные данные для создания категории
         wrong_category_data = {
             'description': 'Wrong description',
@@ -237,7 +237,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_right_create_category_and_get_it_by_admin_user(self):
+    def test_admin_user_can_create_category(self):
         # Данные для создания категории
         category_data = self.update_category_data()
 
@@ -261,7 +261,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(new_created_category_response.status_code, status.HTTP_200_OK)
 
-    def test_wrong_put_category_by_anon_user(self):
+    def test_anon_user_cannot_put_category(self):
         # Данные для полного обновления категории
         new_category_data = self.update_category_data(
             title='New put test',
@@ -278,7 +278,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на необновление категории
         self.assertFalse(Category.objects.filter(slug=new_category_data['slug']).exists())
 
-    def test_wrong_put_category_by_normal_user(self):
+    def test_normal_user_cannot_put_category(self):
         # Данные для полного обновления категории
         new_category_data = self.update_category_data(
             title='New put test',
@@ -295,7 +295,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на необновление категории
         self.assertFalse(Category.objects.filter(slug=new_category_data['slug']).exists())
     
-    def test_wrong_put_category_by_admin_user(self):
+    def test_admin_user_cannot_put_category_with_invalid_data(self):
         # Неправильные данные для полного обновления категории
         wrong_category_data = {
             'title': '',
@@ -318,7 +318,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_right_put_category_by_admin_user(self):
+    def test_admin_user_can_put_category(self):
         # Данные для полного обновления категории
         new_category_data = self.update_category_data(
             title='New put test',
@@ -354,7 +354,7 @@ class CategoryAPITest(APITestCase):
             created_category_data=category_response.data, category_data=new_category_data,
         )
 
-    def test_wrong_patch_category_by_anon_user(self):
+    def test_anon_user_cannot_patch_category(self):
         # Данные для частичного обновления категории
         new_category_data = {
             'title': 'New put title',
@@ -374,7 +374,7 @@ class CategoryAPITest(APITestCase):
             data={'title': self.category1.title},
         )
 
-    def test_wrong_patch_category_by_normal_user(self):
+    def test_normal_user_cannot_patch_category(self):
         # Данные для частичного обновления категории
         new_category_data = {
             'title': 'New put title',
@@ -394,7 +394,7 @@ class CategoryAPITest(APITestCase):
             data={'title': self.category1.title},
         )
 
-    def test_wrong_patch_category_by_admin_user(self):
+    def test_admin_user_cannot_patch_category_with_invalid_data(self):
         # Неправильные данные для частичного обновления категории
         wrong_category_data = self.update_category_data(
             title='',
@@ -420,7 +420,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_right_patch_category_by_admin_user(self):
+    def test_admin_user_can_patch_category(self):
         # Данные для частичного обновления категории
         new_category_data = {
             'title': 'New title',
@@ -446,7 +446,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(category_response.status_code, status.HTTP_200_OK)
 
-    def test_wrong_delete_category_by_anon_user(self):
+    def test_anon_user_cannot_delete_category(self):
         # Неправильное удаление категории анонимным пользователем и проврка
         wrong_anon_response = self.anon_client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
@@ -456,7 +456,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на неудаление
         self.assertTrue(Category.objects.filter(slug=self.category1.slug).exists())
 
-    def test_wrong_delete_category_by_normal_user(self):
+    def test_normal_user_cannot_delete_category(self):
         # Неправильное удаление категории обычным пользователем и проврка
         wrong_normal_response = self.client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
@@ -466,7 +466,7 @@ class CategoryAPITest(APITestCase):
         # Проверка на неудаление
         self.assertTrue(Category.objects.filter(slug=self.category1.slug).exists())
 
-    def test_delete_category_by_admin_user(self):
+    def test_admin_user_can_delete_category(self):
         # Удалиение категории админом
         delete_response = self.admin_client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 

@@ -171,7 +171,7 @@ class ProductAPITest(APITestCase):
             else:
                 self.assertEqual(getattr(product, key), value)
 
-    def test_ordering_product_by_anon_user(self):
+    def test_anon_user_can_order_products(self):
         # Создание нового товара
         new_product = Product.objects.create(**self.update_product_data())
 
@@ -183,7 +183,7 @@ class ProductAPITest(APITestCase):
         product_list = self.get_list_items(ordering_response)
         self.assertEqual(product_list[0]['slug'], new_product.slug)
 
-    def test_get_products_search_category_title_list_by_anon_user(self):
+    def test_anon_user_can_search_products_by_category_title(self):
         # Получение второго товара по поиску по полю title и проверка
         searched_response = self.anon_client.get(f'{self.product_list_url}?search={self.category.title}')
         self.assertEqual(searched_response.status_code, status.HTTP_200_OK)
@@ -193,7 +193,7 @@ class ProductAPITest(APITestCase):
         self.assertIn(self.product1.slug, all_products_slugs)
         self.assertIn(self.product2.slug, all_products_slugs)
 
-    def test_get_products_search_title_list_by_anon_user(self):
+    def test_anon_user_can_search_products_by_product_title(self):
         # Получение второго товара по поиску по полю title и проверка
         searched_response = self.anon_client.get(f'{self.product_list_url}?search=second')
         self.assertEqual(searched_response.status_code, status.HTTP_200_OK)
@@ -212,7 +212,7 @@ class ProductAPITest(APITestCase):
         self.assertIn(self.product1.slug, all_products_slugs)
         self.assertNotIn(self.product2.slug, all_products_slugs)
 
-    def test_get_products_filter_list_by_anon_user(self):
+    def test_anon_user_can_filter_products(self):
         # Получение второго товара по фильтру по полю price и проверка
         filtered_response = self.anon_client.get(f'{self.product_list_url}?price_min=300')
         self.assertEqual(filtered_response.status_code, status.HTTP_200_OK)
@@ -240,7 +240,7 @@ class ProductAPITest(APITestCase):
         self.assertIn(self.product1.slug, all_products_slugs)
         self.assertIn(self.product2.slug, all_products_slugs)
     
-    def test_get_list_of_products_by_anon_user(self):
+    def test_anon_user_can_get_product_list(self):
         # Получение всех товаров и проверка
         list_response = self.anon_client.get(self.product_list_url)
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
@@ -253,7 +253,7 @@ class ProductAPITest(APITestCase):
         product2_data = self.get_item_in_list(products_response=list_response, slug=self.product2.slug)
         self.check_contains_product_in_product_data(product_data=product2_data, product=self.product2)
     
-    def test_get_detail_product_by_anon_user(self):
+    def test_anon_user_can_get_product_detail(self):
         # Взятие товара и проверка
         detail_response = self.anon_client.get(
             self.get_product_detail_url_with_slug(self.product1.slug)
@@ -265,14 +265,14 @@ class ProductAPITest(APITestCase):
             product_data=detail_response.data, product=self.product1,
         )
 
-    def test_get_wrong_detail_product_by_anon_user(self):
+    def test_anon_user_cannot_get_product_detail_with_invalid_data(self):
         # Неправильное взятие товара и проверка
         wrong_detail_response = self.anon_client.get(
             self.get_product_detail_url_with_slug('wrong-slug')
         )
         self.assertEqual(wrong_detail_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_wrong_create_product_by_anon_user(self):
+    def test_anon_user_cannot_create_product(self):
         # Данные для создания товара
         product_data = self.update_product_data()
 
@@ -285,7 +285,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=product_data['slug']).exists())
 
-    def test_wrong_create_product_by_normal_user(self):
+    def test_normal_user_cannot_create_product(self):
         # Данные для создания товара
         product_data = self.update_product_data()
 
@@ -298,7 +298,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=product_data['slug']).exists())
 
-    def test_wrong_create_product_and_get_it_by_admin_user(self):
+    def test_admin_user_cannot_create_product_with_invalid_data(self):
         # Неправильные данные для создания товара
         wrong_product_data = {
             'title': 'Wrong title',
@@ -321,7 +321,7 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_product_detail_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_right_create_product_and_get_it_by_admin_user(self):
+    def test_admin_user_can_create_product(self):
         # Данные для создания товара
         product_data = self.update_product_data()
 
@@ -351,7 +351,7 @@ class ProductAPITest(APITestCase):
             product_data=new_product_response.data, product=new_product,
         )
 
-    def test_wrong_create_product_with_price_lt_0_by_admin_user(self):
+    def test_admin_user_cannot_create_product_with_price_lte_0(self):
         # Неправильные данные для создания товара
         wrong_product_data = self.update_product_data(price=-999)
 
@@ -364,7 +364,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
     
-    def test_wrong_create_product_with_quantity_lt_reserved_quantity_by_admin_user(self):
+    def test_admin_user_cannot_create_product_with_quantity_lt_reserved_quantity(self):
         # Неправильные данные для создания товара
         wrong_product_data = self.update_product_data(quantity=10, reserved_quantity=20)
 
@@ -377,7 +377,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
 
-    def test_wrong_put_product_by_anon_user(self):
+    def test_anon_user_cannot_put_product(self):
         # Данные для полного обновления товара
         new_product_data = self.update_product_data()
 
@@ -392,7 +392,7 @@ class ProductAPITest(APITestCase):
         self.product1.refresh_from_db()
         self.assertFalse(Product.objects.filter(slug=new_product_data['slug']).exists())
 
-    def test_wrong_put_product_by_normal_user(self):
+    def test_normal_user_cannot_put_product(self):
         # Данные для полного обновления товара
         new_product_data = self.update_product_data()
 
@@ -407,7 +407,7 @@ class ProductAPITest(APITestCase):
         self.product1.refresh_from_db()
         self.assertFalse(Product.objects.filter(slug=new_product_data['slug']).exists())
 
-    def test_wrong_put_product_by_admin_user(self):
+    def test_admin_user_cannot_put_product_with_invalid_data(self):
         # Неправильные данные для полного обновления
         wrong_product_data = {
             'description': 'Wrong description',
@@ -431,7 +431,7 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)    
 
-    def test_right_put_product_by_admin_user(self):
+    def test_admin_user_can_put_product(self):
         # Данные для полного обновления товара
         new_product_data = self.update_product_data()
 
@@ -464,7 +464,7 @@ class ProductAPITest(APITestCase):
             created_product_data=product_response.data, product_data=new_product_data,
         )
     
-    def test_wrong_patch_product_by_anon_user(self):
+    def test_anon_user_cannot_patch_product(self):
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -485,7 +485,7 @@ class ProductAPITest(APITestCase):
             data={'price': self.product1.price, 'quantity': self.product1.quantity}
         )
 
-    def test_wrong_patch_product_by_normal_user(self):
+    def test_normal_user_cannot_patch_product(self):
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -506,7 +506,7 @@ class ProductAPITest(APITestCase):
             data={'price': self.product1.price, 'quantity': self.product1.quantity}
         )
 
-    def test_wrong_patch_product_by_admin_user(self):
+    def test_admin_user_cannot_patch_product_with_invalid_data(self):
         # Неправильные данные для частичного обновления
         wrong_product_data = {
             'title': '',
@@ -531,7 +531,7 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_right_patch_product_by_admin_user(self):
+    def test_admin_user_can_patch_product(self):
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -559,7 +559,7 @@ class ProductAPITest(APITestCase):
         self.assertEqual(Decimal(response.data['price']), Decimal(new_product_data['price']))
         self.assertEqual(response.data['quantity'], new_product_data['quantity'])
 
-    def test_wrong_delete_product_by_anon_user(self):
+    def test_anon_user_cannot_delete_product(self):
         # Неправильное удаление товара анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.delete(
             self.get_product_detail_url_with_slug(self.product1.slug),
@@ -569,7 +569,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неудаление товара в БД
         self.assertTrue(Product.objects.filter(slug=self.product1.slug).exists())
 
-    def test_wrong_delete_product_by_normal_user(self):
+    def test_normal_user_cannot_delete_product(self):
         # Неправильное удаление товара обычным пользователем и проверка
         wrong_normal_response = self.client.delete(
             self.get_product_detail_url_with_slug(self.product1.slug),
@@ -579,7 +579,7 @@ class ProductAPITest(APITestCase):
         # Проверка на неудаление товара в БД
         self.assertTrue(Product.objects.filter(slug=self.product1.slug).exists())
     
-    def test_delete_product_by_admin_user(self):
+    def test_admin_user_can_delete_product(self):
         # Удаление товара админом
         delete_response = self.admin_client.delete(
             self.get_product_detail_url_with_slug(self.product1.slug),
@@ -595,45 +595,45 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_in_active_product_by_anon_user(self):
+    def test_anon_user_cannot_get_inactive_product(self):
         # Создание неактивного товара
-        in_active_product = Product.objects.create(**self.update_product_data(is_active=False))
+        inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
         
         # Проверка товара в БД
-        self.check_product_from_db(slug=in_active_product.slug, data={'is_active': False})
+        self.check_product_from_db(slug=inactive_product.slug, data={'is_active': False})
 
         # Неправильное получение неактивного товара анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.get(
-            self.get_product_detail_url_with_slug(in_active_product.slug),
+            self.get_product_detail_url_with_slug(inactive_product.slug),
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_in_active_product_by_normal_user(self):
+    def test_normal_user_cannot_get_inactive_product(self):
         # Создание неактивного товара
-        in_active_product = Product.objects.create(**self.update_product_data(is_active=False))
+        inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
 
         # Проверка товара в БД
-        self.check_product_from_db(slug=in_active_product.slug, data={'is_active': False})
+        self.check_product_from_db(slug=inactive_product.slug, data={'is_active': False})
 
         # Неправильное получение неактивного товара обычным пользователем и проверка
         wrong_normal_response = self.client.get(
-            self.get_product_detail_url_with_slug(in_active_product.slug),
+            self.get_product_detail_url_with_slug(inactive_product.slug),
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_404_NOT_FOUND)
     
-    def test_get_in_active_product_by_admin_user(self):
+    def test_admin_user_can_get_inactive_product(self):
         # Создание неактивного товара
-        in_active_product = Product.objects.create(**self.update_product_data(is_active=False))
+        inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
 
         # Проверка товара в БД
-        self.check_product_from_db(slug=in_active_product.slug, data={'is_active': False})
+        self.check_product_from_db(slug=inactive_product.slug, data={'is_active': False})
 
         # Попытка взять неактивный товар и проверка
-        in_active_response = self.admin_client.get(
-            self.get_product_detail_url_with_slug(in_active_product.slug),
+        inactive_response = self.admin_client.get(
+            self.get_product_detail_url_with_slug(inactive_product.slug),
         )
-        self.assertEqual(in_active_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(inactive_response.status_code, status.HTTP_200_OK)
 
         # Попытка взять список, где есть неактивный товар и проверка
-        in_active_list_response = self.admin_client.get(self.product_list_url)
-        self.get_item_in_list(products_response=in_active_list_response, slug=in_active_product.slug)
+        inactive_list_response = self.admin_client.get(self.product_list_url)
+        self.get_item_in_list(products_response=inactive_list_response, slug=inactive_product.slug)
