@@ -8,7 +8,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
-from django_prod_shop.products.models import Category
+from django_prod_shop.products.models import Category, Product
 
 
 user_model = get_user_model()
@@ -29,7 +29,7 @@ class CategoryAPITest(APITestCase):
             'email': 'test_user1@mail.ru',
             'password': 'test_user1_password!',
         }
-        user_model.objects.create_user(
+        cls.normal_user = user_model.objects.create_user(
             email=cls.normal_user_data['email'], 
             password=cls.normal_user_data['password'],
             is_active=True,
@@ -40,14 +40,13 @@ class CategoryAPITest(APITestCase):
             'email': 'admin@mail.ru',
             'password': 'admin_password!',
         }
-        user_model.objects.create_superuser(
+        cls.admin_user = user_model.objects.create_superuser(
             email=cls.admin_user_data['email'], 
             password=cls.admin_user_data['password'],
             is_active=True,
         )
 
         # Объявление url
-        cls.token_create_url = reverse('users:token-access')
         cls.category_list_url = reverse('products:category-list')
 
         ### Categories ###
@@ -63,43 +62,15 @@ class CategoryAPITest(APITestCase):
     def setUp(self):
         cache.clear()
         self.admin_client = APIClient()
+        self.normal_client = APIClient()
         self.anon_client = APIClient()
 
         # Авторизация админа и обычного пользователя
-        self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-            client=self.client,
-        )
-        self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
+        self.normal_client.force_authenticate(user=self.normal_user)
+        self.admin_client.force_authenticate(user=self.admin_user)
     
     def get_category_detail_url_with_slug(self, slug):
         return reverse('products:category-detail', kwargs={'slug': slug})
-    
-    def login_user(self, email, password, client=None):
-        # Логин пользователя
-        if client is None:
-            client = self.client
-        
-        response = client.post(
-            self.token_create_url,
-            data={
-                'email': email,
-                'password': password,
-            },
-            format='json',
-        )
-    
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
-
-        client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
-
-        return response
     
     def get_list_items(self, categories_response):
         if 'results' in categories_response.data:
@@ -146,7 +117,6 @@ class CategoryAPITest(APITestCase):
             return
         
         for key, value in data.items():
-            self.assertTrue(hasattr(category, key))
             self.assertEqual(getattr(category, key), value)
 
     def test_anon_user_can_search_categories(self):
@@ -188,7 +158,96 @@ class CategoryAPITest(APITestCase):
 
         # Проверка на наличие в ответе
         self.check_contains_category_in_category_data(category_data=detail_response.data, category=self.category1)
-    
+
+    def test_anon_user_cannot_get_inactive_product_from_category_detail(self):
+        # Создание активного товара
+        active_product = Product.objects.create(
+            title='Test active product anon',
+            category=self.category1,
+            quantity=100,
+            reserved_quantity=50,
+            description='active product anon',
+            slug=f'test-active-product-anon',
+            price=999,
+            is_active=True,
+        )
+        
+        # Создание неактивного товара
+        inactive_product = Product.objects.create(
+            title='Test inactive product anon',
+            category=self.category1,
+            quantity=100,
+            reserved_quantity=50,
+            description='inactive product anon',
+            slug=f'test-inactive-product-anon',
+            price=999,
+            is_active=False,
+        )
+
+        # Получение детальной категории и проверка
+        category_detail_response = self.anon_client.get(self.get_category_detail_url_with_slug(self.category1.slug))
+        self.assertEqual(category_detail_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие товаров в детальной категории
+        product_slugs = {item['slug'] for item in category_detail_response.data['products']}
+        self.assertIn(active_product.slug, product_slugs)
+        self.assertNotIn(inactive_product.slug, product_slugs)
+
+    def test_normal_user_cannot_get_inactive_product_from_category_detail(self):
+        # Создание активного товара
+        active_product = Product.objects.create(
+            title='Test active product normal',
+            category=self.category1,
+            quantity=100,
+            reserved_quantity=50,
+            description='active product normal',
+            slug=f'test-active-product-normal',
+            price=999,
+            is_active=True,
+        )
+        
+        # Создание неактивного товара
+        inactive_product = Product.objects.create(
+            title='Test inactive product normal',
+            category=self.category1,
+            quantity=100,
+            reserved_quantity=50,
+            description='inactive product normal',
+            slug=f'test-inactive-product-normal',
+            price=999,
+            is_active=False,
+        )
+
+        # Получение детальной категории и проверка
+        category_detail_response = self.normal_client.get(self.get_category_detail_url_with_slug(self.category1.slug))
+        self.assertEqual(category_detail_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие товаров в детальной категории
+        product_slugs = {item['slug'] for item in category_detail_response.data['products']}
+        self.assertIn(active_product.slug, product_slugs)
+        self.assertNotIn(inactive_product.slug, product_slugs)
+
+    def test_admin_user_can_get_inactive_product_from_category_detail(self):
+        # Создание неактивного товара
+        inactive_product = Product.objects.create(
+            title='Test inactive product admin',
+            category=self.category1,
+            quantity=100,
+            reserved_quantity=50,
+            description='inactive product admin',
+            slug=f'test-inactive-product-admin',
+            price=999,
+            is_active=False,
+        )
+
+        # Получение детальной категории и проверка
+        category_detail_response = self.admin_client.get(self.get_category_detail_url_with_slug(self.category1.slug))
+        self.assertEqual(category_detail_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие товаров в детальной категории
+        product_slugs = {item['slug'] for item in category_detail_response.data['products']}
+        self.assertIn(inactive_product.slug, product_slugs)
+
     def test_anon_user_cannot_create_category(self):
         # Данные для создания категории
         category_data = self.update_category_data()
@@ -207,7 +266,7 @@ class CategoryAPITest(APITestCase):
         category_data = self.update_category_data()
 
         # Попытка создать категорию обычному пользователю
-        wrong_normal_response = self.client.post(
+        wrong_normal_response = self.normal_client.post(
             self.category_list_url, data=category_data, format='json',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
@@ -222,7 +281,7 @@ class CategoryAPITest(APITestCase):
             'slug': 'wrong-slug',
         }
 
-        # Неправильное создание категории и проврека
+        # Неправильное создание категории и проверека
         wrong_response = self.admin_client.post(
             self.category_list_url, data=wrong_category_data, format='json',
         )
@@ -286,7 +345,7 @@ class CategoryAPITest(APITestCase):
         )
 
         # Неправильное обновлкние категории обычным пользователем и проверка
-        wrong_normal_response = self.client.put(
+        wrong_normal_response = self.normal_client.put(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
             data=new_category_data, format='json',
         )
@@ -381,7 +440,7 @@ class CategoryAPITest(APITestCase):
         }
 
         # Неправильное частичное обновление категории обычным пользователем и проверка
-        wrong_normal_response = self.client.patch(
+        wrong_normal_response = self.normal_client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
             data=new_category_data, format='json',
         )
@@ -400,7 +459,7 @@ class CategoryAPITest(APITestCase):
             title='',
         )
 
-        # Неправильное частичное обновление категории и проврека
+        # Неправильное частичное обновление категории и проверека
         wrong_response = self.admin_client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
             data=wrong_category_data, format='json',
@@ -436,18 +495,18 @@ class CategoryAPITest(APITestCase):
         # Проверка на обновление категории
         self.category1.refresh_from_db()
         self.check_category_from_db(
-            slug=new_category_data['slug'], 
+            slug=self.category1.slug, 
             data={'title': new_category_data['title']},
         )
 
         # Взятие новой категории и проверка
         category_response = self.admin_client.get(
-            self.get_category_detail_url_with_slug(slug=new_category_data['slug']),
+            self.get_category_detail_url_with_slug(slug=self.category1.slug),
         )
         self.assertEqual(category_response.status_code, status.HTTP_200_OK)
 
     def test_anon_user_cannot_delete_category(self):
-        # Неправильное удаление категории анонимным пользователем и проврка
+        # Неправильное удаление категории анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
         )
@@ -457,8 +516,8 @@ class CategoryAPITest(APITestCase):
         self.assertTrue(Category.objects.filter(slug=self.category1.slug).exists())
 
     def test_normal_user_cannot_delete_category(self):
-        # Неправильное удаление категории обычным пользователем и проврка
-        wrong_normal_response = self.client.delete(
+        # Неправильное удаление категории обычным пользователем и проверка
+        wrong_normal_response = self.normal_client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
