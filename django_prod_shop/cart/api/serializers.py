@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from django_prod_shop.coupons.models import Coupon
 from django_prod_shop.products.models import Product
 from django_prod_shop.cart.models import Cart, CartItem
 
@@ -7,24 +8,11 @@ from django_prod_shop.cart.models import Cart, CartItem
 class CartItemSerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source='product.title', read_only=True)
     product_slug = serializers.SlugRelatedField(source='product', slug_field='slug', read_only=True)
+    total_price = serializers.ReadOnlyField()
 
     class Meta:
         model = CartItem
         fields = ['id', 'product_title', 'product_slug', 'quantity', 'total_price']
-    
-    def validate(self, attrs):
-        quantity = attrs.get('quantity')
-        
-        if quantity is None:
-            raise serializers.ValidationError({'quantity': 'Укажите количество'})
-
-        if quantity < 0:
-            raise serializers.ValidationError({'quantity': 'Количество не может быть меньше 0'})
-        
-        if quantity == 0:
-            raise serializers.ValidationError({'quantity': 'Количество не может равняться 0'})
-
-        return attrs
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -49,10 +37,7 @@ class CartAddSerializer(serializers.Serializer):
         except Product.DoesNotExist:
             raise serializers.ValidationError({'product_slug' :'Такого товара не существует'})
             
-        quantity = attrs.get('quantity')
-        if quantity is None:
-            raise serializers.ValidationError({'quantity': 'Укажите количество'})
-
+        quantity = attrs['quantity']
         available_quantity = product.quantity - product.reserved_quantity
         if available_quantity < quantity:
             raise serializers.ValidationError({
@@ -65,3 +50,19 @@ class CartAddSerializer(serializers.Serializer):
 
 class CartUpdateSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=0)
+
+
+class ApplyCouponSerializer(serializers.Serializer):
+    code = serializers.CharField()
+
+    def validate_code(self, value):
+        try:
+            coupon = Coupon.objects.get(code=value)
+        except Coupon.DoesNotExist:
+            raise serializers.ValidationError('Такого купона не существует')
+
+        if not coupon.is_active:
+            raise serializers.ValidationError('Данный купон неактивен')
+
+        self.context['coupon'] = coupon
+        return value

@@ -3,20 +3,20 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
-from rest_framework.mixins import ListModelMixin
 
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 
-from django_prod_shop.cart.api.serializers import CartSerializer, CartAddSerializer, CartUpdateSerializer
+from django_prod_shop.products.models import Product
+from django_prod_shop.cart.api.serializers import (CartSerializer, CartAddSerializer, 
+                                                   CartUpdateSerializer, ApplyCouponSerializer)
 from django_prod_shop.cart.models import Cart, CartItem
-from django_prod_shop.coupons.models import Coupon
 from django_prod_shop.cart.services import get_or_create_cart, get_cart_cache_key
 
 
-class CartViewSet(ListModelMixin, GenericViewSet):
+class CartViewSet(GenericViewSet):
     serializer_class = CartSerializer
     permission_classes = [AllowAny]
 
@@ -52,7 +52,8 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         quantity = serializer.validated_data['quantity']
 
         with transaction.atomic():
-            available_quantity = product.quantity - product.reserved_quantity
+            locked_product = Product.objects.select_for_update().get(pk=product.pk)
+            available_quantity = locked_product.quantity - locked_product.reserved_quantity
 
             if quantity > available_quantity:
                 return Response(
@@ -60,10 +61,10 @@ class CartViewSet(ListModelMixin, GenericViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            item = CartItem.objects.select_for_update().filter(cart=cart, product=product).first()
+            item = CartItem.objects.select_for_update().filter(cart=cart, product=locked_product).first()
 
             if item is None:
-                CartItem.objects.create(cart=cart, product=product, quantity=quantity)
+                CartItem.objects.create(cart=cart, product=locked_product, quantity=quantity)
             else:
                 new_quantity = item.quantity + quantity
                 
@@ -89,11 +90,13 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         quantity = serializer.validated_data['quantity']
 
         with transaction.atomic():
-            item = CartItem.objects.select_related('product').select_for_update().get(id=item.pk)
+            item = CartItem.objects.select_for_update().get(id=item.pk)
+            locked_product = Product.objects.select_for_update().get(pk=item.product_id)
+
             if quantity == 0:
                 item.delete()
             else:
-                available_quantity = item.product.quantity - item.product.reserved_quantity
+                available_quantity = locked_product.quantity - locked_product.reserved_quantity
                 if quantity > available_quantity:
                     return Response(
                         {'quantity': f'Недостаточно товара на складе. Доступно: {available_quantity}'},
@@ -120,12 +123,23 @@ class CartViewSet(ListModelMixin, GenericViewSet):
         cart.cart_items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
-    @action(detail=False, methods=['get'], url_path=r'apply-coupon/(?P<code>[^/.]+)', url_name='apply-coupon')
-    def apply_coupon(self, request, code=None):
+    @action(detail=False, methods=['post'], url_path='apply-coupon', url_name='apply-coupon')
+    def apply_coupon(self, request):
         cart = self.get_cart()
-        coupon = get_object_or_404(Coupon, code=code)
-        if not coupon.is_active:
-            return Response({'code': 'Данный купон неактивен'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = ApplyCouponSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        coupon = serializer.context['coupon']
         cart.coupon = coupon
-        cart.save()
+        cart.save(update_fields=['coupon', 'updated_at'])
+
+        return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'], url_path='remove-coupon', url_name='remove-coupon')
+    def remove_coupon(self, request):
+        cart = self.get_cart()
+        cart.coupon = None
+        cart.save(update_fields=['coupon', 'updated_at'])
+
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)

@@ -1,11 +1,15 @@
+from datetime import timedelta
+
 from django.core.cache import cache
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.urls import reverse
 
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
+from django_prod_shop.coupons.models import Coupon
 from django_prod_shop.products.models import Category, Product
 
 
@@ -27,7 +31,7 @@ class CartAPITest(APITestCase):
             'email': 'test_user1@mail.ru',
             'password': 'test_user1_password!',
         }
-        user_model.objects.create_user(
+        cls.normal_user = user_model.objects.create_user(
             email=cls.normal_user_data['email'], 
             password=cls.normal_user_data['password'],
             is_active=True,
@@ -38,7 +42,7 @@ class CartAPITest(APITestCase):
             'email': 'admin@mail.ru',
             'password': 'admin_password!',
         }
-        user_model.objects.create_superuser(
+        cls.admin_user = user_model.objects.create_superuser(
             email=cls.admin_user_data['email'], 
             password=cls.admin_user_data['password'],
             is_active=True,
@@ -48,6 +52,8 @@ class CartAPITest(APITestCase):
         cls.token_create_url = reverse('users:token-access')
         cls.cart_list_url = reverse('cart:cart-list')
         cls.add_to_cart_url = reverse('cart:cart-add-to-cart')
+        cls.apply_coupon_cart_url = reverse('cart:cart-apply-coupon')
+        cls.remove_coupon_cart_url = reverse('cart:cart-remove-coupon')
         cls.clear_cart_url = reverse('cart:cart-clear-cart')
 
         ### Products ###
@@ -67,43 +73,44 @@ class CartAPITest(APITestCase):
             description='2', slug='test-title-of-second-product', price=200, is_active=True,
         )
 
+        ### Coupons ###
+
+        # Данные для создания купонов
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+
+        # Создание трёх купонов
+        cls.coupon1 = Coupon.objects.create(
+            code='test-coupon-123321',
+            valid_from=time_start,
+            valid_to=time_end,
+            discount=50,
+            is_active=True
+        )
+        cls.coupon2 = Coupon.objects.create(
+            code='test-coupon-321123',
+            valid_from=time_start,
+            valid_to=time_end,
+            discount=25,
+            is_active=True
+        )
+        cls.coupon_inactive = Coupon.objects.create(
+            code='test-coupon-inactive',
+            valid_from=time_start,
+            valid_to=time_end,
+            discount=50,
+            is_active=False
+        )
+
     def setUp(self):
         cache.clear()
         self.admin_client = APIClient()
+        self.normal_client = APIClient()
         self.anon_client = APIClient()
 
         # Авторизация админа и обычного пользователя
-        self.login_user(
-            email=self.normal_user_data['email'],
-            password=self.normal_user_data['password'],
-            client=self.client,
-        )
-        self.login_user(
-            email=self.admin_user_data['email'],
-            password=self.admin_user_data['password'],
-            client=self.admin_client,
-        )
-    
-    def login_user(self, email, password, client=None):
-        # Логин пользователя
-        if client is None:
-            client = self.client
-        
-        response = client.post(
-            self.token_create_url,
-            data={
-                'email': email,
-                'password': password,
-            },
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
-
-        client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
-
-        return response
+        self.normal_client.force_authenticate(user=self.normal_user)
+        self.admin_client.force_authenticate(user=self.admin_user)
     
     def get_cart_update_url_with_kwargs(self, item_id):
         return reverse('cart:cart-update-cart-item', kwargs={'item_id': item_id})
@@ -114,7 +121,7 @@ class CartAPITest(APITestCase):
     def add_to_cart_test_product(self, client=None):
         # Добавление тестового товара в корзину
         if client is None:
-            client = self.client
+            client = self.normal_client
 
         test_product_data = {
             'product_slug': self.product1.slug,
@@ -126,10 +133,18 @@ class CartAPITest(APITestCase):
         )
         self.assertEqual(test_response.status_code, status.HTTP_200_OK)
     
+    def apply_coupon(self, client, code, expected_stats=status.HTTP_200_OK):
+        test_response = client.post(
+            self.apply_coupon_cart_url, data={'code': code}, format='json',
+        )
+        self.assertEqual(test_response.status_code, expected_stats)
+
+        return test_response
+
     def get_cart(self, client=None):
         # Получение корзины
         if client is None:
-            client = self.client
+            client = self.normal_client
         
         cart_response = client.get(self.cart_list_url)
         self.assertEqual(cart_response.status_code, status.HTTP_200_OK)
@@ -149,17 +164,23 @@ class CartAPITest(APITestCase):
                 return
         self.fail(f"Количество у товаара со слагом'{product_slug}' не совпадает")
 
+    def check_empty_cart(self, cart_response):
+        self.assertEqual(cart_response.data['items'], [])
+        self.assertEqual(cart_response.data['total_quantity'], 0)
+
+    def check_cart_totals(self, cart_response, expected_total_quantity, expected_total_price):
+        self.assertEqual(cart_response.data['total_quantity'], expected_total_quantity)
+        self.assertEqual(str(cart_response.data['total_price']), expected_total_price)
+
     def test_get_empty_cart_by_anon_user(self):
         # Получение пустой корзины анонимно и проверка
         cart_anon_response = self.get_cart(self.anon_client)
-        self.assertEqual(cart_anon_response.data['items'], [])
-        self.assertEqual(cart_anon_response.data['total_quantity'], 0)
+        self.check_empty_cart(cart_anon_response)
 
     def test_get_empty_cart_by_normal_user(self):
         # Получение пустой корзины обычным пользователем и проверка
         cart_normal_response = self.get_cart()
-        self.assertEqual(cart_normal_response.data['items'], [])
-        self.assertEqual(cart_normal_response.data['total_quantity'], 0)
+        self.check_empty_cart(cart_normal_response)
     
     def test_anon_user_can_add_to_cart_products_twice(self):
         # Добавление товара в корзину анонимно
@@ -174,6 +195,11 @@ class CartAPITest(APITestCase):
             cart=cart_anon_response, 
             product_slug=self.product1.slug,
             expected_quantity=2
+        )
+        self.check_cart_totals(
+            cart_anon_response, 
+            expected_total_quantity=2, 
+            expected_total_price='800.00',
         )
 
     def test_anon_user_can_add_to_cart_two_products(self):
@@ -211,6 +237,11 @@ class CartAPITest(APITestCase):
             product_slug=product_data_2['product_slug'],
             expected_quantity=product_data_2['quantity'],
         )
+        self.check_cart_totals(
+            cart_anon_response,
+              expected_total_quantity=2, 
+            expected_total_price='600.00',
+        )
         
     def test_normal_user_can_add_to_cart_two_products(self):
         # Данные товаров для добавления в корзину
@@ -224,11 +255,11 @@ class CartAPITest(APITestCase):
         }
 
         # Добавление товаров в корзину обычным пользователем и проверка
-        add_to_cart_normal_response = self.client.post(
+        add_to_cart_normal_response = self.normal_client.post(
             self.add_to_cart_url, data=product_data, format='json',
         )
         self.assertEqual(add_to_cart_normal_response.status_code, status.HTTP_200_OK)
-        add_to_cart_normal_response = self.client.post(
+        add_to_cart_normal_response = self.normal_client.post(
             self.add_to_cart_url, data=product_data_2, format='json',
         )
         self.assertEqual(add_to_cart_normal_response.status_code, status.HTTP_200_OK)
@@ -246,6 +277,11 @@ class CartAPITest(APITestCase):
             cart=cart_normal_response, 
             product_slug=product_data_2['product_slug'],
             expected_quantity=product_data_2['quantity'],
+        )
+        self.check_cart_totals(
+            cart_normal_response, 
+            expected_total_quantity=2, 
+            expected_total_price='600.00',
         )
 
     def test_admin_user_cannot_add_to_cart_over_products(self):
@@ -265,29 +301,108 @@ class CartAPITest(APITestCase):
         cart_admin_response = self.get_cart(self.admin_client)
         
         # Проверка корзины админом
-        self.assertEqual(cart_admin_response.data['items'], [])
+        self.check_empty_cart(cart_admin_response)
     
     def test_admin_user_cannot_update_product_in_cart_to_0(self):
         # Добавление товара в корзину анонимно
-        self.add_to_cart_test_product(client=self.anon_client)
+        self.add_to_cart_test_product(client=self.admin_client)
         
         # Получение item_id
         item_id = self.get_cart_item_id(
-            cart=self.get_cart(self.anon_client), product_slug=self.product1.slug,
+            cart=self.get_cart(self.admin_client), product_slug=self.product1.slug,
         )
 
         # Обновлнение количества на 0 анонимно и проверка
-        cart_update_anon_response = self.anon_client.patch(
+        cart_update_anon_response = self.admin_client.patch(
            self.get_cart_update_url_with_kwargs(item_id=item_id), 
            data={'quantity': 0}, format='json',
         )
         self.assertEqual(cart_update_anon_response.status_code, status.HTTP_200_OK)
     
         # Получение корзины анонимно после обновления
-        cart_anon_response = self.get_cart(self.anon_client)
+        cart_anon_response = self.get_cart(self.admin_client)
 
         # Проверка корзины анонимно после обновления
-        self.assertEqual(cart_anon_response.data['items'], [])
+        self.check_empty_cart(cart_anon_response)
+
+    def test_anon_user_can_add_to_cart_product_and_apply_coupon(self):
+        # Добавление товара в корзину анонимно
+        self.add_to_cart_test_product(client=self.anon_client)
+
+        # Применение купона анонимно и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, code=self.coupon1.code
+        )
+        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon1.code)
+        self.assertEqual(coupon_anon_response.data['discount'], self.coupon1.discount)
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '300.00')
+    
+    def test_anon_user_can_add_to_cart_product_and_twice_apply_coupon(self):
+        # Добавление товара в корзину анонимно
+        self.add_to_cart_test_product(client=self.anon_client)
+
+        # Применение купона анонимно и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, code=self.coupon1.code
+        )
+        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon1.code)
+        self.assertEqual(coupon_anon_response.data['discount'], self.coupon1.discount)
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '300.00')
+
+        # Применение купона анонимно второй раз и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, code=self.coupon2.code
+        )
+        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon2.code)
+        self.assertEqual(coupon_anon_response.data['discount'], self.coupon2.discount)
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '450.00')
+
+    def test_anon_user_can_add_to_cart_product_and_apply_coupon_and_remove_coupon(self):
+        # Добавление товара в корзину анонимно
+        self.add_to_cart_test_product(client=self.anon_client)
+
+        # Применение купона анонимно и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, code=self.coupon1.code
+        )
+        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon2.code)
+        self.assertEqual(coupon_anon_response.data['discount'], self.coupon2.discount)
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '300.00')
+
+        # Удаление купона анонимно и проверка
+        anon_coupon_response = self.anon_client.delete(self.remove_coupon_cart_url)
+        self.assertEqual(anon_coupon_response.status_code, status.HTTP_200_OK)
+
+        # Получение корзины и проверка купона
+        cart_anon_response = self.get_cart(client=self.anon_client)
+        self.assertIsNone(cart_anon_response.data['coupon'])
+        self.assertEqual(str(cart_anon_response.data['total_price']), '600.00')
+
+    def test_anon_user_cannot_add_to_cart_product_and_apply_inactive_coupon(self):
+        # Добавление товара в корзину анонимно
+        self.add_to_cart_test_product(client=self.anon_client)
+
+        # Применение неактивного купона анонимно и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, 
+            code=self.coupon_inactive.code,
+            expected_stats=status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIsNone(coupon_anon_response.data['coupon'])
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '600.00')
+    
+    def test_anon_user_cannot_add_to_cart_product_and_apply_invalid_coupon(self):
+        # Добавление товара в корзину анонимно
+        self.add_to_cart_test_product(client=self.anon_client)
+
+        # Применение несуществующего купона анонимно и проверка
+        coupon_anon_response = self.apply_coupon(
+            client=self.anon_client, 
+            code='invalid-coupon',
+            expected_stats=status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIsNone(coupon_anon_response.data['coupon'])
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '600.00')
 
     def test_normal_user_can_update_product_in_cart(self):
         # Добавление товара в корзину обычным пользователем
@@ -299,7 +414,7 @@ class CartAPITest(APITestCase):
         )
 
         # Обновлнение на правильное количество обычным пользователем и проверка
-        cart_update_normal_response = self.client.patch(
+        cart_update_normal_response = self.normal_client.patch(
            self.get_cart_update_url_with_kwargs(item_id=item_id), 
            data={'quantity': 2}, format='json',
         )
@@ -346,7 +461,7 @@ class CartAPITest(APITestCase):
         )
 
         # Удаление из корзины обычным пользователем и проверка
-        delete_normal_response = self.client.delete(
+        delete_normal_response = self.normal_client.delete(
             self.get_cart_remove_url_with_kwargs(item_id=item_id),
         )
         self.assertEqual(delete_normal_response.status_code, status.HTTP_200_OK)
@@ -383,7 +498,7 @@ class CartAPITest(APITestCase):
         self.add_to_cart_test_product()
 
         # Неправильное удаление из корзины обычным пользователем и проверка
-        wrong_normal_response = self.client.delete(
+        wrong_normal_response = self.normal_client.delete(
             self.get_cart_remove_url_with_kwargs(item_id=50),
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_404_NOT_FOUND)
@@ -410,21 +525,21 @@ class CartAPITest(APITestCase):
         cart_anon_response = self.get_cart(self.anon_client)
         
         # Проверка корзины анонимно после очистки
-        self.assertEqual(cart_anon_response.data['items'], [])
+        self.check_empty_cart(cart_anon_response)
 
     def test_normal_user_can_clear_cart(self):
         # Добавление товара в корзину обычным пользователем
         self.add_to_cart_test_product()
 
         # Очистка корзины обычным пользователем
-        cart_clear_normal_response = self.client.delete(self.clear_cart_url)
+        cart_clear_normal_response = self.normal_client.delete(self.clear_cart_url)
         self.assertEqual(cart_clear_normal_response.status_code, status.HTTP_204_NO_CONTENT)
 
         # Получение корзины обычным пользователем после очистки
         cart_normal_response = self.get_cart()
 
         # Проверка корзины обычным пользователем после очистки
-        self.assertEqual(cart_normal_response.data['items'], [])
+        self.check_empty_cart(cart_normal_response)
         
     def test_merge_cart_by_anon_to_normal_user(self):
         # Создание нового юзера для проверки слияния корзин
@@ -437,7 +552,7 @@ class CartAPITest(APITestCase):
         # Добавление товара в корзину анонимно
         self.add_to_cart_test_product(client=self.anon_client)
 
-        # Логин нового пользователя
+        # Логин пользователя
         login_response = self.anon_client.post(
             self.token_create_url,
             data={
@@ -456,7 +571,7 @@ class CartAPITest(APITestCase):
 
         # Получение и проверка старой корзины анонимно
         cart_anon_response = self.get_cart(self.anon_client)
-        self.assertEqual(cart_anon_response.data['items'], [])
+        self.check_empty_cart(cart_anon_response)
 
         # Привязка токена
         self.anon_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
