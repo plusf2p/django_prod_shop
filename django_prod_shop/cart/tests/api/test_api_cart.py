@@ -72,6 +72,10 @@ class CartAPITest(APITestCase):
             title='Test title of second product', category=cls.category, quantity=100, reserved_quantity=10, 
             description='2', slug='test-title-of-second-product', price=200, is_active=True,
         )
+        cls.product_inactive = Product.objects.create(
+            title='Test title of inactive product', category=cls.category, quantity=100, reserved_quantity=10, 
+            description='inative', slug='test-title-of-inactive-product', price=200, is_active=False,
+        )
 
         ### Coupons ###
 
@@ -285,7 +289,7 @@ class CartAPITest(APITestCase):
         )
 
     def test_admin_user_cannot_add_to_cart_over_products(self):
-        # Неправильные данные для доьавления товара в корзину
+        # Неправильные данные для добавления товара в корзину
         product_data_over = {
             'product_slug': self.product1.slug,
             'quantity': 10000,
@@ -303,24 +307,81 @@ class CartAPITest(APITestCase):
         # Проверка корзины админом
         self.check_empty_cart(cart_admin_response)
     
-    def test_admin_user_cannot_update_product_in_cart_to_0(self):
+    def test_admin_user_cannot_add_to_cart_inactive_product(self):
+        # Неактивные данные для добавления товара в корзину
+        product_data_inactive = {
+            'product_slug': self.product_inactive.slug,
+            'quantity': 1,
+        }
+
+        # Добавление несуществующего товара в корзину админом и проверка
+        wrong_admin_response = self.admin_client.post(
+            self.add_to_cart_url, data=product_data_inactive, format='json',
+        )
+        self.assertEqual(wrong_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Получение корзины админом
+        cart_admin_response = self.get_cart(self.admin_client)
+        
+        # Проверка корзины админом
+        self.check_empty_cart(cart_admin_response)
+
+    def test_admin_user_cannot_add_to_cart_products_with_invalid_data(self):
+        # Неправильные данные для добавления товара в корзину
+        product_data_over = {
+            'product_slug': 'test-invalid-product',
+            'quantity': 15,
+        }
+
+        # Добавление несуществующего товара в корзину админом и проверка
+        wrong_admin_response = self.admin_client.post(
+            self.add_to_cart_url, data=product_data_over, format='json',
+        )
+        self.assertEqual(wrong_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Получение корзины админом
+        cart_admin_response = self.get_cart(self.admin_client)
+        
+        # Проверка корзины админом
+        self.check_empty_cart(cart_admin_response)
+
+    def test_admin_user_cannot_add_to_cart_product_with_0_quantity(self):
+        # Неправильные данные для добавления товара в корзину
+        product_data_invalid = {
+            'product_slug': self.product1.slug,
+            'quantity': 0,
+        }
+
+        # Добавление неправльного товара в корзину админом и проверка
+        wrong_admin_response = self.admin_client.post(
+            self.add_to_cart_url, data=product_data_invalid, format='json',
+        )
+        self.assertEqual(wrong_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Получение корзины админом
+        cart_admin_response = self.get_cart(self.admin_client)
+        
+        # Проверка корзины админом
+        self.check_empty_cart(cart_admin_response)
+    
+    def test_anon_user_can_update_product_in_cart_to_0_and_product_deleted(self):
         # Добавление товара в корзину анонимно
-        self.add_to_cart_test_product(client=self.admin_client)
+        self.add_to_cart_test_product(client=self.anon_client)
         
         # Получение item_id
         item_id = self.get_cart_item_id(
-            cart=self.get_cart(self.admin_client), product_slug=self.product1.slug,
+            cart=self.get_cart(self.anon_client), product_slug=self.product1.slug,
         )
 
         # Обновлнение количества на 0 анонимно и проверка
-        cart_update_anon_response = self.admin_client.patch(
+        cart_update_anon_response = self.anon_client.patch(
            self.get_cart_update_url_with_kwargs(item_id=item_id), 
            data={'quantity': 0}, format='json',
         )
         self.assertEqual(cart_update_anon_response.status_code, status.HTTP_200_OK)
     
         # Получение корзины анонимно после обновления
-        cart_anon_response = self.get_cart(self.admin_client)
+        cart_anon_response = self.get_cart(self.anon_client)
 
         # Проверка корзины анонимно после обновления
         self.check_empty_cart(cart_anon_response)
@@ -365,8 +426,8 @@ class CartAPITest(APITestCase):
         coupon_anon_response = self.apply_coupon(
             client=self.anon_client, code=self.coupon1.code
         )
-        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon2.code)
-        self.assertEqual(coupon_anon_response.data['discount'], self.coupon2.discount)
+        self.assertEqual(coupon_anon_response.data['coupon'], self.coupon1.code)
+        self.assertEqual(coupon_anon_response.data['discount'], self.coupon1.discount)
         self.assertEqual(str(coupon_anon_response.data['total_price']), '300.00')
 
         # Удаление купона анонимно и проверка
@@ -383,26 +444,32 @@ class CartAPITest(APITestCase):
         self.add_to_cart_test_product(client=self.anon_client)
 
         # Применение неактивного купона анонимно и проверка
-        coupon_anon_response = self.apply_coupon(
+        self.apply_coupon(
             client=self.anon_client, 
             code=self.coupon_inactive.code,
             expected_stats=status.HTTP_400_BAD_REQUEST,
         )
-        self.assertIsNone(coupon_anon_response.data['coupon'])
-        self.assertEqual(str(coupon_anon_response.data['total_price']), '600.00')
+        
+        # Получение корзины анонимно и проверка
+        cart_response = self.get_cart(self.anon_client)
+        self.assertIsNone(cart_response.data['coupon'])
+        self.assertEqual(str(cart_response.data['total_price']), '600.00')
     
     def test_anon_user_cannot_add_to_cart_product_and_apply_invalid_coupon(self):
         # Добавление товара в корзину анонимно
         self.add_to_cart_test_product(client=self.anon_client)
 
         # Применение несуществующего купона анонимно и проверка
-        coupon_anon_response = self.apply_coupon(
+        self.apply_coupon(
             client=self.anon_client, 
             code='invalid-coupon',
             expected_stats=status.HTTP_400_BAD_REQUEST,
         )
-        self.assertIsNone(coupon_anon_response.data['coupon'])
-        self.assertEqual(str(coupon_anon_response.data['total_price']), '600.00')
+        
+        # Получение корзины анонимно и проверка
+        cart_response = self.get_cart(self.anon_client)
+        self.assertIsNone(cart_response.data['coupon'])
+        self.assertEqual(str(cart_response.data['total_price']), '600.00')
 
     def test_normal_user_can_update_product_in_cart(self):
         # Добавление товара в корзину обычным пользователем
