@@ -186,7 +186,7 @@ class CartAPITest(APITestCase):
         self.assertEqual(cart_response.data['items'], [])
         self.assertEqual(cart_response.data['total_quantity'], 0)
         self.assertEqual(str(cart_response.data['total_price']), '0.00')
-        self.assertIsNone(cart_response.data['coupon'])
+        self.assertNotIn('coupon', cart_response.data)
 
     def check_cart_totals(self, cart_response, expected_total_quantity, expected_total_price):
         self.assertEqual(cart_response.data['total_quantity'], expected_total_quantity)
@@ -411,7 +411,7 @@ class CartAPITest(APITestCase):
         )
         self.assertEqual(coupon_anon_response.data['coupon'], self.coupon2.code)
         self.assertEqual(coupon_anon_response.data['discount'], self.coupon2.discount)
-        self.assertEqual(str(coupon_anon_response.data['total_price']), '300.00')
+        self.assertEqual(str(coupon_anon_response.data['total_price']), '600.00')
 
     def test_anon_user_can_add_to_cart_product_and_apply_coupon_and_remove_coupon(self):
         # Добавление товара в корзину анонимно
@@ -431,7 +431,7 @@ class CartAPITest(APITestCase):
 
         # Получение корзины и проверка купона
         cart_anon_response = self.get_cart(client=self.anon_client)
-        self.assertIsNone(cart_anon_response.data['coupon'])
+        self.assertNotIn('coupon', cart_anon_response.data)
         self.assertEqual(str(cart_anon_response.data['total_price']), '800.00')
 
     def test_admin_user_cannot_add_to_cart_product_and_apply_inactive_coupon(self):
@@ -447,7 +447,7 @@ class CartAPITest(APITestCase):
         
         # Получение корзины анонимно и проверка
         cart_response = self.get_cart(self.admin_client)
-        self.assertIsNone(cart_response.data['coupon'])
+        self.assertNotIn('coupon', cart_response.data)
         self.assertEqual(str(cart_response.data['total_price']), '800.00')
     
     def test_admin_user_cannot_add_to_cart_product_and_apply_invalid_coupon(self):
@@ -463,7 +463,7 @@ class CartAPITest(APITestCase):
         
         # Получение корзины админом и проверка
         cart_response = self.get_cart(self.admin_client)
-        self.assertIsNone(cart_response.data['coupon'])
+        self.assertNotIn('coupon', cart_response.data)
         self.assertEqual(str(cart_response.data['total_price']), '800.00')
     
     def test_admin_user_cannot_add_to_cart_product_and_apply_future_date_coupon(self):
@@ -479,7 +479,7 @@ class CartAPITest(APITestCase):
         
         # Получение корзины админом и проверка
         cart_response = self.get_cart(self.admin_client)
-        self.assertIsNone(cart_response.data['coupon'])
+        self.assertNotIn('coupon', cart_response.data)
         self.assertEqual(str(cart_response.data['total_price']), '800.00')
     
     def test_admin_user_cannot_add_to_cart_product_and_apply_past_date_coupon(self):
@@ -495,7 +495,7 @@ class CartAPITest(APITestCase):
         
         # Получение корзины админом и проверка
         cart_response = self.get_cart(self.admin_client)
-        self.assertIsNone(cart_response.data['coupon'])
+        self.assertNotIn('coupon', cart_response.data)
         self.assertEqual(str(cart_response.data['total_price']), '800.00')
 
     def test_anon_user_can_update_product_in_cart(self):

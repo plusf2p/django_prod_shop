@@ -83,5 +83,5 @@ class ApplyCouponSerializer(serializers.Serializer):
                 'code': 'Срок действия купона истёк'
             })
 
-        self.context['product'] = coupon
+        self.context['coupon'] = coupon
         return attrs

@@ -241,7 +241,7 @@ class ProductAPITest(APITestCase):
 
         # Неправильная попытка создать товар анонимно
         wrong_anon_response = self.anon_client.post(
-            self.product_list_url, data=product_data, format='json',
+            self.product_list_url, data=product_data, format='multipart',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -254,7 +254,7 @@ class ProductAPITest(APITestCase):
 
         # Неправильная попытка создать товар обычному пользователю
         wrong_normal_response = self.normal_client.post(
-            self.product_list_url, data=product_data, format='json',
+            self.product_list_url, data=product_data, format='multipart',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -271,7 +271,7 @@ class ProductAPITest(APITestCase):
 
         # Неправильная попытка создать товар админом и проверка
         wrong_response = self.admin_client.post(
-            self.product_list_url, data=wrong_product_data, format='json',
+            self.product_list_url, data=wrong_product_data, format='multipart',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -290,7 +290,7 @@ class ProductAPITest(APITestCase):
 
         # Создание товара админом и проверка
         new_created_product_response = self.admin_client.post(
-            self.product_list_url, data=product_data, format='json',
+            self.product_list_url, data=product_data, format='multipart',
         )
         self.assertEqual(new_created_product_response.status_code, status.HTTP_201_CREATED)
 
@@ -334,7 +334,7 @@ class ProductAPITest(APITestCase):
 
         # Неправильная попытка создать товар админом и проверка
         wrong_response = self.admin_client.post(
-            self.product_list_url, data=wrong_product_data, format='json',
+            self.product_list_url, data=wrong_product_data, format='multipart',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -347,7 +347,7 @@ class ProductAPITest(APITestCase):
 
         # Неправильная попытка создать товар админом и проверка
         wrong_response = self.admin_client.post(
-            self.product_list_url, data=wrong_product_data, format='json',
+            self.product_list_url, data=wrong_product_data, format='multipart',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -361,7 +361,7 @@ class ProductAPITest(APITestCase):
         # Неправильная попытка обновить товар анонимно и проверка
         wrong_anon_response = self.anon_client.put(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
         
@@ -376,7 +376,7 @@ class ProductAPITest(APITestCase):
         # Неправильная попытка обновить товар обычному пользователю  и проверка
         wrong_normal_response = self.normal_client.put(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -394,7 +394,7 @@ class ProductAPITest(APITestCase):
         # Неправильное полное обновление товара админом и проверка
         wrong_response = self.admin_client.put(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=wrong_product_data, format='json',
+            data=wrong_product_data, format='multipart',
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -418,7 +418,7 @@ class ProductAPITest(APITestCase):
         # Полное обновление товара админом и проверка
         put_response = self.admin_client.put(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(put_response.status_code, status.HTTP_200_OK)
         
@@ -452,7 +452,7 @@ class ProductAPITest(APITestCase):
         # Неправильное частичное обновление товара анонимным пользователем и проверка
         wrong_anon_response = self.anon_client.patch(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(wrong_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -474,7 +474,7 @@ class ProductAPITest(APITestCase):
         # Неправильное частичное обновление товара обычным пользователем и проверка
         wrong_normal_response = self.normal_client.patch(
             self.get_product_detail_url_with_slug(self.product1.slug),  
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -497,7 +497,7 @@ class ProductAPITest(APITestCase):
         # Неправильное частичное обновление товара и проверка
         wrong_patch_response = self.admin_client.patch(
             self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=wrong_product_data, format='json',
+            data=wrong_product_data, format='multipart',
         )
         self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -521,7 +521,7 @@ class ProductAPITest(APITestCase):
         # Частичное обновление товара админом и проверка
         patch_response = self.admin_client.patch(
             self.get_product_detail_url_with_slug(self.product1.slug),
-            data=new_product_data, format='json',
+            data=new_product_data, format='multipart',
         )
         self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
 
