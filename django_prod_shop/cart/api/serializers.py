@@ -1,3 +1,5 @@
+from django.utils import timezone
+
 from rest_framework import serializers
 
 from django_prod_shop.coupons.models import Coupon
@@ -55,14 +57,31 @@ class CartUpdateSerializer(serializers.Serializer):
 class ApplyCouponSerializer(serializers.Serializer):
     code = serializers.CharField()
 
-    def validate_code(self, value):
+    def validate(self, attrs):
+        code = attrs['code']
+        now = timezone.now().date()
+
         try:
-            coupon = Coupon.objects.get(code=value)
+            coupon = Coupon.objects.get(code=code)
         except Coupon.DoesNotExist:
-            raise serializers.ValidationError('Такого купона не существует')
+            raise serializers.ValidationError({
+                'code': 'Такого купона не существует'
+            })
 
         if not coupon.is_active:
-            raise serializers.ValidationError('Данный купон неактивен')
+            raise serializers.ValidationError({
+                'code': 'Данный купон неактивен'
+            })
 
-        self.context['coupon'] = coupon
-        return value
+        if coupon.valid_from > now:
+            raise serializers.ValidationError({
+                'code': 'Срок действия купона ещё не начался'
+            })
+
+        if coupon.valid_to < now:
+            raise serializers.ValidationError({
+                'code': 'Срок действия купона истёк'
+            })
+
+        self.context['product'] = coupon
+        return attrs
