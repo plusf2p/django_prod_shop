@@ -10,6 +10,12 @@ class CouponSerializer(serializers.ModelSerializer):
         model = Coupon
         fields = ['id', 'code', 'discount', 'valid_from', 'valid_to', 'is_active']
 
+    def validate_discount(self, value):
+        if not (0 <= value <= 100):
+            raise serializers.ValidationError('Значение скидки должно быть от 0 до 100')
+        
+        return value
+
     def validate(self, attrs):
         now = timezone.now().date()
 
@@ -29,7 +35,7 @@ class CouponSerializer(serializers.ModelSerializer):
         if valid_to < now:
             raise serializers.ValidationError({'valid_to': 'Срок действия купона истёк'})
 
-        if valid_from > valid_to:
+        if valid_to <= valid_from:
             raise serializers.ValidationError({'valid_to': 'Дата начала работы купона не может быть позже даты конца работы'})
 
         return attrs

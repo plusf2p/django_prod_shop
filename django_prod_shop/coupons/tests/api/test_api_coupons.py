@@ -167,7 +167,7 @@ class CouponAPITest(APITestCase):
         invalid_normal_response = self.normal_client.get(self.list_coupons_url)
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_user_can_get_list_of_normal_and_inactive_coupons(self):
+    def test_admin_user_can_get_list_of_all_coupons(self):
         # Получение списка купонов админом и проверка
         list_admin_response = self.admin_client.get(self.list_coupons_url)
         self.assertEqual(list_admin_response.status_code, status.HTTP_200_OK)
@@ -215,6 +215,13 @@ class CouponAPITest(APITestCase):
             self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code),
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_cannot_get_not_exists_coupon_detail(self):
+        # Неправильная попытка получить купон админом и проверка
+        invalid_normal_response = self.admin_client.get(
+            self.get_coupon_detail_url_with_kwargs(code='test-not-exists-code'),
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_admin_user_can_get_any_coupon_detail(self):
         # Получение обычного купона админом и проверка
@@ -265,6 +272,60 @@ class CouponAPITest(APITestCase):
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_admin_user_cannot_create_coupon_with_exists_code(self):
+        # Правильное время для купонов
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = self.update_coupon_data(
+            code=self.coupon2.code,
+            valid_from=self.bring_date_to_correct_form(time_start),
+            valid_to=self.bring_date_to_correct_form(time_end),
+        )
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
+        self.assertIn('code', invalid_admin_response.data)
+
+    def test_admin_user_cannot_create_coupon_with_discount_lt_0(self):
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = self.update_coupon_data(
+            discount=-1,
+        )
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertIn('discount', invalid_admin_response.data)
+    
+    def test_admin_user_cannot_create_coupon_with_discount_gt_100(self):
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = self.update_coupon_data(
+            discount=101,
+        )
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertIn('discount', invalid_admin_response.data)
+
     def test_admin_user_cannot_create_coupon_with_invalid_code(self):
         # Правильное время для купонов
         time_start = timezone.now().date()
@@ -284,6 +345,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('valid_from', invalid_admin_response.data)
         self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('code', invalid_admin_response.data)
 
     def test_admin_user_cannot_create_coupon_with_invalid_date_from(self):
@@ -304,6 +366,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_from', invalid_admin_response.data)
 
     def test_admin_user_cannot_create_coupon_with_invalid_date_to(self):
@@ -324,6 +387,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_to', invalid_admin_response.data)
 
     def test_admin_user_can_create_coupon(self):
@@ -392,7 +456,35 @@ class CouponAPITest(APITestCase):
         # Проверка на необновленность купона
         self.coupon1.refresh_from_db()
         self.assertTrue(Coupon.objects.filter(code=self.coupon1.code).exists())
-    
+
+    def test_admin_user_cannot_put_coupon_with_exists_code(self):
+        # Правильное время для купона
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+
+        # Неправильные данные для полного обновления купона
+        invalid_test_coupon_data = self.update_coupon_data(
+            code=self.coupon2.code,
+            valid_from=self.bring_date_to_correct_form(time_start),
+            valid_to=self.bring_date_to_correct_form(time_end),
+            is_active=False,
+        )
+
+        # Неправльное полное обновление купона админом и проверка
+        invalid_admin_response = self.admin_client.put(
+            self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code), 
+            data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
+        self.assertIn('code', invalid_admin_response.data)
+
+        # Проверка на необновленность купона
+        self.coupon1.refresh_from_db()
+        self.assertTrue(Coupon.objects.filter(code=self.coupon1.code).exists())
+
     def test_admin_user_cannot_put_coupon_with_invalid_date_from(self):
         # Неправильное время для купона
         time_start = (timezone.now() + timedelta(days=7)).date()
@@ -413,12 +505,43 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_from', invalid_admin_response.data)
 
         # Проверка на необновленность купона
         self.coupon1.refresh_from_db()
         self.assertTrue(Coupon.objects.filter(code=self.coupon1.code).exists())
     
+    def test_admin_user_cannot_put_coupon_with_invalid_discount(self):
+        # Правильное время для купона
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+
+        # Неправильные данные для полного обновления купона
+        invalid_test_coupon_data = self.update_coupon_data(
+            valid_from=self.bring_date_to_correct_form(time_start),
+            valid_to=self.bring_date_to_correct_form(time_end),
+            is_active=False,
+            discount=-1,
+        )
+
+        # Неправльное полное обновление купона админом и проверка
+        invalid_admin_response = self.admin_client.put(
+            self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code), 
+            data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertIn('discount', invalid_admin_response.data)
+
+        # Проверка на необновленность купона
+        self.coupon1.refresh_from_db()
+        self.assertTrue(Coupon.objects.filter(
+            code=self.coupon1.code, discount=self.coupon1.discount
+        ).exists())
+
     def test_admin_user_cannot_put_coupon_with_invalid_date_to(self):
         # Неправильное время для купона
         time_start = timezone.now().date()
@@ -439,6 +562,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_to', invalid_admin_response.data)
 
         # Проверка на необновленность купона
@@ -529,6 +653,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_from', invalid_admin_response.data)
         
         # Проверка необновленность купона
@@ -555,14 +680,60 @@ class CouponAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn('code', invalid_admin_response.data)
         self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
         self.assertIn('valid_to', invalid_admin_response.data)
         
         # Проверка необновленность купона
         self.coupon1.refresh_from_db()
         self.assertFalse(Coupon.objects.filter(
             code=self.coupon1.code, 
-            valid_from=self.bring_date_to_correct_form(time_end),
+            valid_to=self.bring_date_to_correct_form(time_end),
         ).exists())
+    
+    def test_admin_user_cannot_patch_coupon_with_invalid_discount(self):
+        # Неправильные данные для частичного обновления купона
+        invalid_test_coupon_data = {
+            'discount': -1,
+        }
+
+        # Неправльное частичное обновление купона админом и проверка
+        invalid_admin_response = self.admin_client.patch(
+            self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code), 
+            data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertIn('discount', invalid_admin_response.data)
+        
+        # Проверка необновленность купона
+        self.coupon1.refresh_from_db()
+        self.assertFalse(Coupon.objects.filter(
+            code=self.coupon1.code, 
+            discount=invalid_test_coupon_data['discount'],
+        ).exists())
+    
+    def test_admin_user_cannot_patch_coupon_with_exists_code(self):
+        # Неправильные данные для частичного обновления купона
+        invalid_test_coupon_data = {
+            'code': self.coupon2.code,
+        }
+
+        # Неправльное частичное обновление купона админом и проверка
+        invalid_admin_response = self.admin_client.patch(
+            self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code), 
+            data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertNotIn('discount', invalid_admin_response.data)
+        self.assertIn('code', invalid_admin_response.data)
+        
+        # Проверка необновленность купона
+        self.coupon1.refresh_from_db()
+        self.assertTrue(Coupon.objects.filter(code=self.coupon1.code, ).exists())
 
     def test_admin_user_can_patch_coupon(self):
         # Данные для частичного обновления купона
