@@ -13,8 +13,9 @@ class CouponSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         now = timezone.now().date()
 
-        valid_from = attrs.get('valid_from')
-        valid_to = attrs.get('valid_to')
+        instance = getattr(self, 'instance', None)
+        valid_from = attrs.get('valid_from', getattr(instance, 'valid_from', None))
+        valid_to = attrs.get('valid_to', getattr(instance, 'valid_to', None))
 
         if valid_from is None:
             raise serializers.ValidationError({'valid_from': 'Укажите дату начала работы купона'})
