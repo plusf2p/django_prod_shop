@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime
+from uuid import uuid4
 
 from django.urls import reverse
 from django.utils import timezone
@@ -120,14 +121,40 @@ class CouponAPITest(APITestCase):
         self.assertEqual(coupon_data['discount'], coupon.discount)
         
         self.assertEqual(
-            datetime.strptime(coupon_data['valid_from'], "%Y-%m-%d").date(), 
-            coupon.valid_from,
+            coupon_data['valid_from'],
+            self.bring_date_to_correct_form(coupon.valid_from),
         )
         self.assertEqual(
-            datetime.strptime(coupon_data['valid_to'], "%Y-%m-%d").date(),
-            coupon.valid_to,
+            coupon_data['valid_to'],
+            self.bring_date_to_correct_form(coupon.valid_to),
         )
         self.assertEqual(coupon_data['is_active'], coupon.is_active)
+    
+    def check_coupon_from_db(self, code, **data):
+        self.assertTrue(Coupon.objects.filter(code=code).exists())
+        coupon = Coupon.objects.get(code=code)
+        self.assertEqual(coupon.code, code)
+
+        for key, value in data.items():
+            self.assertEqual(getattr(coupon, key), value)
+        
+        return coupon
+
+    def bring_date_to_correct_form(self, date):
+        return date.strftime("%Y-%m-%d")
+
+    def update_coupon_data(self, **new_data):
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+        data = {
+            'code': f'test-{uuid4().hex[:8]}',
+            'valid_from': time_start,
+            'valid_to': time_end,
+            'discount': 50,
+            'is_active': True,
+        }
+        data.update(new_data)
+        return data
 
     def test_anon_user_cannot_get_coupons_list(self):
         # Неправильная попытка получить список купонов анонимно и проверка
@@ -216,6 +243,131 @@ class CouponAPITest(APITestCase):
         )
         self.assertEqual(future_detail_admin_response.status_code, status.HTTP_200_OK)
         self.check_coupon_in_coupon_data(coupon_data=future_detail_admin_response.data, coupon=self.coupon_future)
+
+    def test_anon_user_cannot_create_coupon(self):
+        # Данные для создания купона
+        test_coupon_data = self.update_coupon_data()
+
+        # Неправильная попытка создать купон анонимно и проверка
+        invalid_anon_response = self.anon_client.post(
+            self.list_coupons_url, data=test_coupon_data,
+        )
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_create_delete_coupon(self):
+        # Данные для создания купона
+        test_coupon_data = self.update_coupon_data()
+
+        # Неправильная попытка создать купон обычным пользователем и проверка
+        invalid_normal_response = self.normal_client.post(
+            self.list_coupons_url, data=test_coupon_data,
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_cannot_create_coupon_with_invalid_code(self):
+        # Правильное время для купонов
+        time_start = timezone.now().date()
+        time_end = (timezone.now() + timedelta(days=7)).date()
+
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = {
+            'valid_from': self.bring_date_to_correct_form(time_start),
+            'valid_to': self.bring_date_to_correct_form(time_end),
+            'discount': 50,
+            'is_active': True,
+        }
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertIn('code', invalid_admin_response.data)
+
+    def test_admin_user_cannot_create_coupon_with_invalid_date_from(self):
+        # Правильное время для купонов
+        time_start = (timezone.now() + timedelta(days=7)).date()
+        time_end = timezone.now().date()
+
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = {
+            'code': 'test-coupon-with-invalid-date',
+            'valid_from': self.bring_date_to_correct_form(time_start),
+            'valid_to': self.bring_date_to_correct_form(time_end),
+            'discount': 50,
+            'is_active': True,
+        }
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_to', invalid_admin_response.data)
+        self.assertIn('valid_from', invalid_admin_response.data)
+
+    def test_admin_user_cannot_create_coupon_with_invalid_date_to(self):
+        # Правильное время для купонов
+        time_start = timezone.now().date()
+        time_end = (timezone.now() - timedelta(days=7)).date()
+
+        # Неправильные данные для создания купона
+        invalid_test_coupon_data = {
+            'code': 'test-coupon-with-invalid-date',
+            'valid_from': self.bring_date_to_correct_form(time_start),
+            'valid_to': self.bring_date_to_correct_form(time_end),
+            'discount': 50,
+            'is_active': True,
+        }
+
+        # Неправльное создание купона админом и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.list_coupons_url, data=invalid_test_coupon_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('code', invalid_admin_response.data)
+        self.assertNotIn('valid_from', invalid_admin_response.data)
+        self.assertIn('valid_to', invalid_admin_response.data)
+
+    def test_admin_user_can_create_coupon(self):
+        # Данные для создания купона
+        test_coupon_data = self.update_coupon_data()
+
+        # Создание купона админом и проверка
+        admin_response = self.admin_client.post(
+            self.list_coupons_url, data=test_coupon_data,
+        )
+        self.assertEqual(admin_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(admin_response.data['code'], test_coupon_data['code'])
+        self.assertEqual(
+            admin_response.data['valid_from'], 
+            self.bring_date_to_correct_form(test_coupon_data['valid_from']),
+        )
+        self.assertEqual(
+            admin_response.data['valid_to'], 
+            self.bring_date_to_correct_form(test_coupon_data['valid_to']),
+        )
+        self.assertEqual(admin_response.data['discount'], test_coupon_data['discount'])
+        self.assertEqual(admin_response.data['is_active'], test_coupon_data['is_active'])
+
+        # Проверка нового купона
+        new_coupon = self.check_coupon_from_db(
+            code=test_coupon_data['code'],
+            valid_from=test_coupon_data['valid_from'],
+            valid_to=test_coupon_data['valid_to'],
+            discount=test_coupon_data['discount'],
+            is_active=test_coupon_data['is_active'],
+        )
+
+        # Получение нового купона и проверка
+        admin_detail_response = self.admin_client.get(
+            self.get_coupon_detail_url_with_kwargs(code=test_coupon_data['code']),
+        )
+        self.assertEqual(admin_detail_response.status_code, status.HTTP_200_OK)
+        self.check_coupon_in_coupon_data(coupon_data=admin_detail_response.data, coupon=new_coupon)
 
     def test_anon_user_cannot_delete_coupon(self):
         # Неправильная попытка удалить купон анонимно и проверка

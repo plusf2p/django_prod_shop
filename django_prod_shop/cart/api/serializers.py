@@ -64,24 +64,16 @@ class ApplyCouponSerializer(serializers.Serializer):
         try:
             coupon = Coupon.objects.get(code=code)
         except Coupon.DoesNotExist:
-            raise serializers.ValidationError({
-                'code': 'Такого купона не существует'
-            })
+            raise serializers.ValidationError({'code': 'Такого купона не существует'})
 
         if not coupon.is_active:
-            raise serializers.ValidationError({
-                'code': 'Данный купон неактивен'
-            })
+            raise serializers.ValidationError({'code': 'Данный купон неактивен'})
 
         if coupon.valid_from > now:
-            raise serializers.ValidationError({
-                'code': 'Срок действия купона ещё не начался'
-            })
+            raise serializers.ValidationError({'code': 'Срок действия купона ещё не начался'})
 
         if coupon.valid_to < now:
-            raise serializers.ValidationError({
-                'code': 'Срок действия купона истёк'
-            })
+            raise serializers.ValidationError({'code': 'Срок действия купона истёк'})
 
         self.context['coupon'] = coupon
         return attrs
