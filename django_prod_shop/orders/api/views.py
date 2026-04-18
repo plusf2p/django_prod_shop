@@ -34,7 +34,7 @@ def change_order_status_view(request, order_id):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
+class OrderViewSet(ListModelMixin, CreateModelMixin, GenericViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = 'order_id'
 
