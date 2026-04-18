@@ -22,6 +22,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderReadSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    user = serializers.CharField(source='user.email', read_only=True)
     coupon = serializers.CharField(source='coupon.code', read_only=True)
     total_price_before_discount = serializers.SerializerMethodField(read_only=True)
     discount_price = serializers.SerializerMethodField(read_only=True)
@@ -35,7 +36,7 @@ class OrderReadSerializer(serializers.ModelSerializer):
             'total_price_before_discount', 'discount_price', 'total_price_after_discount',
         ]
         read_only_fields = [
-            'order_id', 'items', 'user', 'full_name', 'phone', 'address', 'city',
+            'order_id', 'items', 'full_name', 'phone', 'address', 'city',
             'status', 'created_at', 'updated_at', 'total_price',
         ]
     
