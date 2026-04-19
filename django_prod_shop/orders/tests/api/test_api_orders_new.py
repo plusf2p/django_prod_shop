@@ -228,6 +228,32 @@ class OrdersAPITest(APITestCase):
                 return True
         return False
 
+    def create_order_data(self, **new_data):
+        data = {
+            'full_name': 'Ivan Petrov',
+            'phone': '+78005553535',
+            'address': 'Pushkina 14',
+            'city': 'Moscow',
+        }
+        data.update(new_data)
+        return data
+
+    # def check_order_from_db(self, order_id, **data):
+    #     self.assertTrue(Order.objects.filter(order_id=order_id).exists())
+    #     order = Order.objects.get(order_id=order_id)
+
+    #     for key, value in data.items():
+    #         self.assertEqual(getattr(data, key), value)
+    #         # if key in [
+    #         #     'price', 'total_price_before_discount', 
+    #         #     'discount_price', 'total_price_after_discount',
+    #         # ]:
+    #         #     self.assertEqual(Decimal(getattr(data, key)), Decimal(value))
+    #         # else:
+    #         #     self.assertEqual(getattr(data, key), value)
+        
+    #     return order
+
     def test_anon_user_cannot_get_orders_list(self):
         # Неправильное получение списка заказов и проверка
         invalid_anon_response = self.anon_client.get(self.orders_list_url)
@@ -317,6 +343,55 @@ class OrdersAPITest(APITestCase):
         )
 
     def test_anon_user_cannot_create_order(self):
+        # Данные для создания заказа
+        order_data = self.create_order_data()
+
         # Неправильное создание заказа и проверка
-        invalid_anon_response = self.anon_client.post(self.orders_list_url)
+        invalid_anon_response = self.anon_client.post(
+            self.orders_list_url, data=order_data,
+        )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_normal_user_can_create_order(self):
+        # Данные для создания заказа
+        order_data = self.create_order_data()
+
+        # Создание заказа из корзины и проверка
+        create_normal_response = self.normal_client.post(
+            self.orders_list_url, data=order_data,
+        )
+        self.assertEqual(create_normal_response.status_code, status.HTTP_201_CREATED)
+
+        # Проверка на наличиие заказа
+        # self.check_order_from_db(
+        #     order_id=create_normal_response.data['order_id'],
+        #     full_name=order_data['full_name'],
+        #     phone=order_data['phone'],
+        #     address=order_data['address'],
+        #     city=order_data['city'],
+        #     total_price=self.cart_normal.total_price,
+        # )
+
+        # Проверка на совпадение созданного заказа
+        data = create_normal_response.data
+        self.assertTrue(Order.objects.filter(order_id=data['order_id']).exists())
+        order = Order.objects.get(order_id=data['order_id'])
+        self.assertEqual(order.full_name, data['full_name'])
+        self.assertEqual(order.phone, data['phone'])
+        self.assertEqual(order.address, data['address'])
+        self.assertEqual(order.city, data['city'])
+        self.assertEqual(order.total_price, self.cart_normal.total_price)
+    
+    def test_items_contains_in_order_response(self):
+        # Получение своего заказа и проверка
+        detail_admin_response = self.admin_client.get(
+            self.get_order_detail_url_with_order_id(order_id=self.order_admin.order_id),
+        )
+        self.assertEqual(detail_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на вхождение товаров в список items
+        for order_item in self.order_admin.items.all():
+            self.assertIn(order_item.product.title, detail_admin_response.data['items'])
+            self.assertIn(order_item.product.slug, detail_admin_response.data['items'])
+            self.assertIn(order_item.price, detail_admin_response.data['items'])
+            self.assertIn(order_item.cost, detail_admin_response.data['items'])
