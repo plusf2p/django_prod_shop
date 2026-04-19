@@ -1,6 +1,3 @@
-from typing import Any
-
-from rest_framework.request import Request
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated
@@ -34,7 +31,7 @@ def change_order_status_view(request, order_id):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class OrderViewSet(ListModelMixin, CreateModelMixin, GenericViewSet):
+class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = 'order_id'
 
