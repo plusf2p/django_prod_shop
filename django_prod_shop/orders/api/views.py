@@ -7,7 +7,6 @@ from rest_framework import status
 
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-from django.core.cache import cache
 
 from django_prod_shop.orders.permissions import CanChangeOrders
 from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
@@ -51,14 +50,11 @@ class OrderViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, Generic
             return OrderWriteSerializer
         return OrderReadSerializer
 
-    def retrieve(self, request, order_id, *args, **kwargs):
-        cache_key = f'order_retrieve_{order_id}'
-        cached_order = cache.get(cache_key)
+    def create(self, request, *args, **kwargs):
+        write_serializer = self.get_serializer(data=request.data)
+        write_serializer.is_valid(raise_exception=True)
+        order = write_serializer.save()
 
-        if cached_order is not None:
-            return Response(cached_order)
-        
-        response = super().retrieve(request, *args, **kwargs)
-        cache.set(cache_key, response.data, 60*60)
-
-        return Response(response.data, status=status.HTTP_200_OK)
+        read_serializer = OrderReadSerializer(order, context=self.get_serializer_context())
+        headers = self.get_success_headers(read_serializer.data)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED, headers=headers)

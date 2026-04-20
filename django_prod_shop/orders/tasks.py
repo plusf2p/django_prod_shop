@@ -13,9 +13,12 @@ logger = get_task_logger(__name__)
 
 @shared_task
 def send_order_email(order_id):
-    order = Order.objects.select_related('coupon').select_related('user').prefetch_related(
-        Prefetch('items', queryset=OrderItem.objects.select_related('product'))
-    ).get(order_id=order_id)
+    try:
+        order = Order.objects.select_related('coupon').select_related('user').prefetch_related(
+            Prefetch('items', queryset=OrderItem.objects.select_related('product'))
+        ).get(order_id=order_id)
+    except Order.DoesNotExist:
+        return
 
     if not order.user or not order.user.email:
         return

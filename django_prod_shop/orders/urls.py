@@ -12,7 +12,7 @@ router = DefaultRouter()
 router.register('orders', api_views.OrderViewSet, basename='orders')
 
 urlpatterns = [
-    path('<uuid:order_id>/change-status/', api_views.change_order_status_view, name='change_order_status')
+    path('<uuid:order_id>/change-status/', api_views.change_order_status_view, name='change-order-status')
 ]
 
 urlpatterns += router.urls

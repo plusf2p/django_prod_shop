@@ -11,15 +11,25 @@ from .models import Order, OrderItem
 
 @transaction.atomic
 def create_order(user, validated_data):
-    cart = Cart.objects.select_related('user').select_related('coupon').prefetch_related(
+    cart = Cart.objects.select_for_update().select_related('user').prefetch_related(
         Prefetch('cart_items', queryset=CartItem.objects.select_related('product'))
     ).filter(user=user).first()
 
     if cart is None:
         raise ValidationError({'error': 'У пользователя нет корзины'})
+    
     cart_items = list(cart.cart_items.all())
     if not cart_items:
         raise ValidationError({'error': 'Корзина пуста'})
+    
+    for cart_item in cart_items:
+        product = cart_item.product
+
+        if not product.is_active:
+            raise ValidationError({'error': f'Товар "{product.title}" недоступен для заказа'})
+
+        if cart_item.quantity > product.quantity:
+            raise ValidationError({'error': f'Недостаточно товара "{product.title}" на складе'})
     
     if cart.coupon_id:
         validated_data['coupon'] = cart.coupon
@@ -43,7 +53,7 @@ def create_order(user, validated_data):
     if order.coupon_id:
         discount = total_before_discount * (Decimal(order.coupon.discount) / Decimal('100'))
     else:
-        discount = 0
+        discount = Decimal('0.00')
     order.total_price = total_before_discount - discount
     order.save(update_fields=['total_price'])
 

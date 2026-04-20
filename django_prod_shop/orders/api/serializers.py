@@ -35,10 +35,7 @@ class OrderReadSerializer(serializers.ModelSerializer):
             'status', 'created_at', 'updated_at', 'total_price', 'coupon',
             'total_price_before_discount', 'discount_price', 'total_price_after_discount',
         ]
-        read_only_fields = [
-            'order_id', 'items', 'full_name', 'phone', 'address', 'city',
-            'status', 'created_at', 'updated_at', 'total_price',
-        ]
+        read_only_fields = fields
     
     def get_total_price_before_discount(self, obj):
         return obj.total_price_before_discount
@@ -51,15 +48,9 @@ class OrderReadSerializer(serializers.ModelSerializer):
 
 
 class OrderWriteSerializer(serializers.ModelSerializer):
-    coupon = serializers.CharField(source='coupon.code', read_only=True)
-
     class Meta:
         model = Order
-        fields = [
-            'order_id', 'full_name', 'phone', 'address', 'city', 'coupon',
-            'status', 'created_at', 'updated_at', 'total_price',
-        ]
-        read_only_fields = ['order_id', 'status', 'coupon', 'created_at', 'updated_at', 'total_price']
+        fields = ['full_name', 'phone', 'address', 'city']
 
     def create(self, validated_data):
         order =  create_order(user=self.context['request'].user, validated_data=validated_data)
