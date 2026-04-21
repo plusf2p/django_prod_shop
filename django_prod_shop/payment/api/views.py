@@ -1,15 +1,12 @@
+from django.urls import reverse
+
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 
-from django.urls import reverse
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
-from django.views.decorators.vary import vary_on_headers
-
-from django_prod_shop.payment.permissions import CanChangePament
+from django_prod_shop.payment.permissions import CanChangePayment
 from django_prod_shop.payment.models import Payment
 from django_prod_shop.payment.services import create_payment_service
 from .serializers import PaymentSerializer
@@ -18,7 +15,7 @@ from .serializers import PaymentSerializer
 class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = Payment.objects.select_related('order', 'order__user')
     serializer_class = PaymentSerializer
-    lookup_field = 'id'
+    lookup_field = 'payment_id'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -32,19 +29,15 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         if self.action in ['create_payment', 'retrieve']:
             permission_classes = [IsAuthenticated]
         else:
-            permission_classes = [CanChangePament]
+            permission_classes = [CanChangePayment]
         
         return [permission() for permission in permission_classes]
 
-    @method_decorator(vary_on_headers('Authorization'))
-    @method_decorator(cache_page(60*60, key_prefix='payment_list'))
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
     
-    @method_decorator(vary_on_headers('Authorization'))
-    @method_decorator(cache_page(60*60, key_prefix='payment_retrieve'))
     def retrieve(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], url_path=r'create/(?P<order_id>[^/.]+)', url_name='create')
     def create_payment(self, request, order_id=None):
