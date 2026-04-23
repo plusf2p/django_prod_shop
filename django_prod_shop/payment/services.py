@@ -12,6 +12,7 @@ from django_prod_shop.products.models import Product
 from django_prod_shop.orders.models import Order, OrderItem, StatusChoices as OrderStatusChoices
 from django_prod_shop.payment.models import Payment, StatusChoices as PaymentStatusChoices
 
+
 def create_payment_service(request, order_id):
     Configuration.account_id = settings.YOOKASSA_SHOP_ID
     Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
@@ -19,71 +20,86 @@ def create_payment_service(request, order_id):
     email = request.user.email
     if not email:
         return Response(
-            {'email': 'У вас не указан email'}, status=status.HTTP_400_BAD_REQUEST,
+            {'email': 'У вас не указан email'},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
-    return_url = request.build_absolute_uri(reverse('payment:payment_completed'))
+    return_url = request.build_absolute_uri(reverse('payment:payment-completed'))
 
-    try:
-        order = Order.objects.prefetch_related(
-            Prefetch('items', queryset=OrderItem.objects.select_related('product'))
-        ).get(order_id=order_id)
-    except Order.DoesNotExist:
-        return Response({'error': 'Такого заказа не существует'}, status=status.HTTP_404_NOT_FOUND)
-    
-    if (not order.user == request.user) and not request.user.is_staff:
-        return Response({'error': 'Вы не можете оплачивать чужой заказ'}, status=status.HTTP_403_FORBIDDEN)
-
-    if Payment.objects.filter(order=order).exists():
-        return Response({'error': 'У этого заказа уже есть платеж'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if order.status in [OrderStatusChoices.PAID, OrderStatusChoices.DELIVERED, OrderStatusChoices.CANCELLED]:
-        return Response({'error': 'Оплата для этого заказа недоступна'}, status=status.HTTP_400_BAD_REQUEST)
-
-    amount = order.total_price_after_discount
-
-    items = []
-    for item in order.items.all():
-        quantity = item.quantity
-        items.append({
-            "description": item.product.title[:100],
-            "quantity": str(quantity),
-            "amount": {
-                "value": str(item.cost),
-                "currency": "RUB",
-            },
-            "vat_code": '1',
-        })
-
-    try:
-        yoo_payment = YooPayment.create({
-            'amount': {'value': str(amount), 'currency': 'RUB'},
-            'confirmation': {'type': 'redirect', 'return_url': return_url},
-            'capture': True,
-            'receipt': {
-                'customer': {
-                    'email': email
-                },
-                'items': items,
-            },
-            'description': f'Заказ #{order_id}',
-        })
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     try:
         with transaction.atomic():
+            order = Order.objects.select_for_update().get(order_id=order_id)
+
+            if order.user != request.user and not request.user.is_staff:
+                return Response(
+                    {'error': 'Вы не можете оплачивать чужой заказ'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            if Payment.objects.filter(order=order).exists():
+                return Response(
+                    {'error': 'У этого заказа уже есть платеж'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if order.status in [
+                OrderStatusChoices.PAID,
+                OrderStatusChoices.DELIVERED,
+                OrderStatusChoices.CANCELLED,
+            ]:
+                return Response(
+                    {'error': 'Оплата для этого заказа недоступна'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            amount = order.total_price_after_discount
+
+            items = []
+            for item in order.items.all():
+                items.append({
+                    'description': item.product.title[:100],
+                    'quantity': str(item.quantity),
+                    'amount': {
+                        'value': str(item.cost),
+                        'currency': 'RUB',
+                    },
+                    'vat_code': '1',
+                })
+
+            try:
+                yoo_payment = YooPayment.create({
+                    'amount': {'value': str(amount), 'currency': 'RUB'},
+                    'confirmation': {'type': 'redirect', 'return_url': return_url},
+                    'capture': True,
+                    'receipt': {
+                        'customer': {'email': email},
+                        'items': items,
+                    },
+                    'description': f'Заказ #{order_id}',
+                })
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
             for item in order.items.all():
                 Product.objects.filter(pk=item.product_id).update(
                     reserved_quantity=F('reserved_quantity') + item.quantity
                 )
+
             payment = Payment.objects.create(
                 order=order,
                 amount=amount,
                 payment_id=yoo_payment.id,
                 status=PaymentStatusChoices.PENDING,
             )
-    except IntegrityError as e:
-        return Response({'error': 'Не удалось создать платёж. Попробуйте ещё раз'}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Order.DoesNotExist:
+        return Response({'error': 'Такого заказа не существует'}, status=status.HTTP_404_NOT_FOUND)
+    except IntegrityError:
+        return Response(
+            {'error': 'Не удалось создать платёж. Попробуйте ещё раз'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     return Response({
         'id': payment.pk,
         'payment_id': payment.payment_id,
@@ -93,11 +109,9 @@ def create_payment_service(request, order_id):
 
 def confirm_payment(order_id, yk_id):
     with transaction.atomic():
-        order = Order.objects.select_for_update().prefetch_related(
-            Prefetch('items', queryset=OrderItem.objects.select_related('product'))
-        ).select_related('payment').get(order_id=order_id)
+        order = Order.objects.select_for_update().get(order_id=order_id)
 
-        payment = getattr(order, 'payment', None)
+        payment = Payment.objects.filter(order=order).first()
         if payment is None:
             return
 
@@ -109,10 +123,9 @@ def confirm_payment(order_id, yk_id):
         order.save(update_fields=['status', 'yookassa_id'])
 
         for item in order.items.all():
-            quantity = item.quantity
             Product.objects.filter(pk=item.product_id).update(
-                quantity=F('quantity') - quantity,
-                reserved_quantity=F('reserved_quantity') - quantity,
+                quantity=F('quantity') - item.quantity,
+                reserved_quantity=F('reserved_quantity') - item.quantity,
             )
 
         payment.status = PaymentStatusChoices.PAID
@@ -121,11 +134,9 @@ def confirm_payment(order_id, yk_id):
 
 def cancel_payment(order_id, yk_id):
     with transaction.atomic():
-        order = Order.objects.select_for_update().prefetch_related(
-            Prefetch('items', queryset=OrderItem.objects.select_related('product'))
-        ).select_related('payment').get(order_id=order_id)
+        order = Order.objects.select_for_update().get(order_id=order_id)
 
-        payment = getattr(order, 'payment', None)
+        payment = Payment.objects.filter(order=order).first()
         if payment is None:
             return
 

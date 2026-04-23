@@ -15,7 +15,7 @@ class Payment(models.Model):
     )
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма')
     payment_id = models.CharField(max_length=255, unique=True, db_index=True, verbose_name='ID Платежа')
-    status = models.CharField(max_length=20, choices=StatusChoices, default=StatusChoices.PENDING, verbose_name='Статус')
+    status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING, verbose_name='Статус')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
 
     class Meta:

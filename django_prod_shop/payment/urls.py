@@ -13,8 +13,8 @@ router = DefaultRouter()
 router.register('payment', api_views.PaymentViewSet, basename='payment')
 
 urlpatterns = [
-    path('webhook/', YookassaWebhookAPIView.as_view(), name='payment_webhook'),
-    path('completed/', api_views.payment_completed, name='payment_completed'),
+    path('webhook/', YookassaWebhookAPIView.as_view(), name='payment-webhook'),
+    path('completed/', api_views.payment_completed, name='payment-completed'),
 ]
 
 urlpatterns += router.urls
