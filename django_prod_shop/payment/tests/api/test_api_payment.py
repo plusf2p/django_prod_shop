@@ -146,31 +146,31 @@ class PaymentAPITest(APITestCase):
         )
 
         # Создание элементов заказов
-        cls.order_item_normal = OrderItem.objects.create(
+        OrderItem.objects.create(
             order=cls.order_normal,
             product=cls.product1,
             price=cls.product1.price,
             quantity=1,
         )
-        cls.order_item_admin1 = OrderItem.objects.create(
+        OrderItem.objects.create(
             order=cls.order_admin,
             product=cls.product1,
             price=cls.product1.price,
             quantity=1,
         )
-        cls.order_item_admin2 = OrderItem.objects.create(
+        OrderItem.objects.create(
             order=cls.order_admin,
             product=cls.product2,
             price=cls.product2.price,
             quantity=1,
         )
-        cls.order_item_normal_new = OrderItem.objects.create(
+        OrderItem.objects.create(
             order=cls.order_normal_new,
             product=cls.product1,
             price=cls.product1.price,
             quantity=1,
         )
-        cls.order_item_normal_delivered = OrderItem.objects.create(
+        OrderItem.objects.create(
             order=cls.order_normal_delivered,
             product=cls.product1,
             price=cls.product1.price,
@@ -183,6 +183,12 @@ class PaymentAPITest(APITestCase):
 
         cls.order_admin.total_price = cls.order_admin.total_price_after_discount
         cls.order_admin.save(update_fields=['total_price'])
+
+        cls.order_normal_new.total_price = cls.order_normal_new.total_price_after_discount
+        cls.order_normal_new.save(update_fields=['total_price'])
+
+        cls.order_normal_delivered.total_price = cls.order_normal_delivered.total_price_after_discount
+        cls.order_normal_delivered.save(update_fields=['total_price'])
 
         ### Payments ###
 
@@ -220,8 +226,8 @@ class PaymentAPITest(APITestCase):
         for payment_item in payment_response.data:
             if payment_item['payment_id'] == str(payment.payment_id):
                 self.check_payment_in_payment_data(payment_data=payment_item, payment=payment)
-                return True
-        return False
+                return
+        self.fail(f"Платёж с ID '{payment.payment_id}' не найден в ответе")
 
     def get_payment_detail_url_with_payment_id(self, payment_id):
         return reverse('payment:payment-detail', kwargs={'payment_id': str(payment_id)})
@@ -245,14 +251,14 @@ class PaymentAPITest(APITestCase):
         self.assertEqual(normal_response.status_code, status.HTTP_200_OK)
 
         # Проверка на наличие своего платежа
-        self.assertTrue(self.check_contains_payment_in_payment_response(
+        self.check_contains_payment_in_payment_response(
             payment_response=normal_response, payment=self.payment_admin,
-        ))
+        )
 
         # Проверка на наличие чужого платежа
-        self.assertTrue(self.check_contains_payment_in_payment_response(
+        self.check_contains_payment_in_payment_response(
             payment_response=normal_response, payment=self.payment_normal,
-        ))
+        )
 
     def test_anon_user_cannot_get_payment_detail(self):
         # Неправильное получение платежа и проверка
@@ -327,13 +333,16 @@ class PaymentAPITest(APITestCase):
         # Неправильное создание платежа (с неправильным статусом) и проверка
         invalid_admin_response = self.admin_client.post(
             self.get_payment_create_url_with_order_id(
-                order_id=self.order_item_normal_delivered.order.order_id,
+                order_id=self.order_normal_delivered.order_id,
             ),
         )
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(invalid_admin_response.data['error'], 'Оплата для этого заказа недоступна')
 
     def test_admin_user_can_create_payment_with_other_order(self):
+        # Взятие товара для сравнения
+        product_before = Product.objects.get(id=self.product1.pk)
+        
         # Создание данных для подмены
         fake_payment_data = SimpleNamespace(
             id='yk_test_admin_create',
@@ -348,7 +357,24 @@ class PaymentAPITest(APITestCase):
                 self.get_payment_create_url_with_order_id(self.order_normal_new.order_id)
             )
         self.assertEqual(created_admin_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            created_admin_response.data['confirmation_url'],
+            fake_payment_data.confirmation.confirmation_url,
+        )
+
+        # Проверка платежа
         self.assertTrue(Payment.objects.filter(payment_id='yk_test_admin_create').exists())
+        new_payment = Payment.objects.get(payment_id='yk_test_admin_create')
+        self.assertEqual(new_payment.status, PaymentStatusChoices.PENDING)
+
+        # Проверка заказа
+        self.assertEqual(Decimal(new_payment.amount), Decimal(self.order_normal_new.total_price))
+        self.assertEqual(new_payment.order.order_id, self.order_normal_new.order_id)
+
+        # Проверка товара
+        product_after = Product.objects.get(id=self.product1.pk)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity + 1)
+        self.assertEqual(product_after.quantity, product_before.quantity)
 
     def test_normal_user_can_create_payment_with_his_own_order(self):
         # Взятие товара для сравнения
@@ -370,7 +396,7 @@ class PaymentAPITest(APITestCase):
         self.assertEqual(created_normal_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(
             created_normal_response.data['confirmation_url'],
-            'https://yoomoney.ru/checkout/payments/v2/contract?orderId=yk_test_normal_create',
+            fake_payment_data.confirmation.confirmation_url,
         )
 
         # Проверка платежа
@@ -384,7 +410,7 @@ class PaymentAPITest(APITestCase):
 
         # Проверка товара
         product_after = Product.objects.get(id=self.product1.pk)
-        self.assertEqual(product_after.reserved_quantity + 1, product_before.reserved_quantity)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity + 1)
         self.assertEqual(product_after.quantity, product_before.quantity)
 
     def test_webhook_returns_error_400_without_payment_id(self):
@@ -435,6 +461,9 @@ class PaymentAPITest(APITestCase):
         self.assertEqual(invalid_webhook_response.data['status'], 'ignored')
 
     def test_webhook_confirms_payment(self):
+        # Взятие товара для сравнения
+        product_before = Product.objects.get(id=self.product1.pk)
+
         # Данные для вебхука
         webhook_data = {'object': {
             'id': self.payment_normal.payment_id,
@@ -452,10 +481,18 @@ class PaymentAPITest(APITestCase):
         # Проверка платежа и заказа
         self.payment_normal.refresh_from_db()
         self.order_normal.refresh_from_db()
+        product_after = Product.objects.get(pk=self.product1.pk)
+        
+        # Проверка на изменение заказа, платежа и продукта
         self.assertEqual(self.payment_normal.status, PaymentStatusChoices.PAID)
         self.assertEqual(self.order_normal.status, StatusChoices.PAID)
+        self.assertEqual(product_after.quantity, product_before.quantity - 1)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity - 1)
     
     def test_webhook_cancels_payment(self):
+        # Взятие товара для сравнения
+        product_before = Product.objects.get(id=self.product1.pk)
+
         # Данные для вебхука
         webhook_data = {'object': {
             'id': self.payment_normal.payment_id,
@@ -473,5 +510,80 @@ class PaymentAPITest(APITestCase):
         # Проверка платежа и заказа
         self.payment_normal.refresh_from_db()
         self.order_normal.refresh_from_db()
+        product_after = Product.objects.get(pk=self.product1.pk)
+        
+        # Проверка на изменение заказа, платежа и продукта
         self.assertEqual(self.payment_normal.status, PaymentStatusChoices.CANCELLED)
         self.assertEqual(self.order_normal.status, StatusChoices.CANCELLED)
+        self.assertEqual(product_after.quantity, product_before.quantity)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity - 1)
+    
+    def test_webhook_confirm_is_idempotent(self):
+        # Взятие товара для сравнения
+        product_before = Product.objects.get(id=self.product1.pk)
+
+        # Данные для вебхука
+        webhook_data = {'object': {
+            'id': self.payment_normal.payment_id,
+            'status': 'succeeded',
+        }}
+
+        # Одинаковые запросы к вебхуку и проверка
+        first_response = self.client.post(
+            self.payment_webhook_url,
+            data=webhook_data,
+            format='json',
+        )
+        second_response = self.client.post(
+            self.payment_webhook_url,
+            data=webhook_data,
+            format='json',
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+
+        # Обновление заказа и платежа
+        self.payment_normal.refresh_from_db()
+        self.order_normal.refresh_from_db()
+        product_after = Product.objects.get(pk=self.product1.pk)
+
+        # Проверка на изменение заказа, платежа и продукта
+        self.assertEqual(self.payment_normal.status, PaymentStatusChoices.PAID)
+        self.assertEqual(self.order_normal.status, StatusChoices.PAID)
+        self.assertEqual(product_after.quantity, product_before.quantity - 1)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity - 1)
+
+    def test_webhook_cancel_is_idempotent(self):
+        # Взятие товара для сравнения
+        product_before = Product.objects.get(id=self.product1.pk)
+
+        # Данные для вебхука
+        webhook_data = {'object': {
+            'id': self.payment_normal.payment_id,
+            'status': 'canceled',
+        }}
+
+        # Одинаковые запросы к вебхуку и проверка
+        first_response = self.client.post(
+            self.payment_webhook_url,
+            data=webhook_data,
+            format='json',
+        )
+        second_response = self.client.post(
+            self.payment_webhook_url,
+            data=webhook_data,
+            format='json',
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+
+        # Обновление заказа и платежа
+        self.payment_normal.refresh_from_db()
+        self.order_normal.refresh_from_db()
+        product_after = Product.objects.get(pk=self.product1.pk)
+
+        # Проверка на изменение заказа, платежа и продукта
+        self.assertEqual(self.payment_normal.status, PaymentStatusChoices.CANCELLED)
+        self.assertEqual(self.order_normal.status, StatusChoices.CANCELLED)
+        self.assertEqual(product_after.quantity, product_before.quantity)
+        self.assertEqual(product_after.reserved_quantity, product_before.reserved_quantity - 1)
