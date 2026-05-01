@@ -336,3 +336,28 @@ class ReviewAPITest(APITestCase):
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(invalid_normal_response.data['product'][0], 'Вам не доставляли этот товар')
+    
+    def test_normal_user_can_create_review(self):
+        # Данные для отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Создание отзыва и проверка
+        created_normal_response = self.normal_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(created_normal_response.status_code, status.HTTP_201_CREATED)
+
+        # Проверка на совпадение отзыва
+        data = created_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=created_normal_response.data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
