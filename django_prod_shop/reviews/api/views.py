@@ -30,9 +30,6 @@ class ReviewViewSet(ModelViewSet):
             permission_classes = [IsManagerOrAdmin]
 
         return [permission() for permission in permission_classes]
-
-    def perform_update(self, serializer):
-        return serializer.save(user=self.request.user)
     
     def perform_create(self, serializer):
         return serializer.save(user=self.request.user)

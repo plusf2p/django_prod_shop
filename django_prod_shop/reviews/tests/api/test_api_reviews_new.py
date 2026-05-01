@@ -113,18 +113,6 @@ class ReviewAPITest(APITestCase):
             yookassa_id=str(uuid4()),
         )
 
-        cls.order_normal_pending = Order.objects.create(
-            order_id=uuid4(),
-            user=cls.normal_user,
-            full_name='Test full name',
-            phone='+78005553535',
-            address='Test address',
-            city='Test city',
-            total_price=Decimal('1.00'),
-            status=StatusChoices.PENDING,
-            yookassa_id=str(uuid4()),
-        )
-
         # Создание элементов заказов
         OrderItem.objects.create(
             order=cls.order_normal,
@@ -144,18 +132,6 @@ class ReviewAPITest(APITestCase):
             price=cls.product1.price,
             quantity=1,
         )
-        OrderItem.objects.create(
-            order=cls.order_admin,
-            product=cls.product2,
-            price=cls.product2.price,
-            quantity=1,
-        )
-        OrderItem.objects.create(
-            order=cls.order_normal_pending,
-            product=cls.product2,
-            price=cls.product3.price,
-            quantity=1,
-        )
 
         # Переопределение цен
         cls.order_normal.total_price = cls.order_normal.total_price_after_discount
@@ -166,9 +142,6 @@ class ReviewAPITest(APITestCase):
 
         cls.order_admin.total_price = cls.order_admin.total_price_after_discount
         cls.order_admin.save(update_fields=['total_price'])
-
-        cls.order_normal_pending.total_price = cls.order_normal_pending.total_price_after_discount
-        cls.order_normal_pending.save(update_fields=['total_price'])
 
         ### Reviews ###
 
@@ -224,6 +197,16 @@ class ReviewAPITest(APITestCase):
             product_response=product_response,  review=self.product1_admin_review, 
         )
     
+    def test_assert_rating_values_in_proudct(self):
+        # Получение всех отзывов у товара и проверка
+        product_response = self.anon_client.get(self.product1_detail_url)
+        self.assertEqual(product_response.status_code, status.HTTP_200_OK)
+
+        # Расчет рейтинга и сравнение его с существующим
+        avg_rating = round((self.product1_normal_review.rating + self.product1_admin_review) / 2, 1)
+        self.assertEqual(product_response.data['rating'], avg_rating)
+        self.assertEqual(product_response.data['rating_count'], 2)
+    
     def test_anon_user_can_get_review_detail(self):
         # Получение детального отзыва и проверка
         detail_anon_response = self.anon_client.get(
@@ -250,7 +233,7 @@ class ReviewAPITest(APITestCase):
         )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
     
-    def test_normal_user_cannot_create_review_with_not_exists_product(self):
+    def test_admin_user_cannot_create_review_with_not_exists_product(self):
         # Неверные данные для отзыва
         invalid_review_data = {
             'product': 'not-exists-product',
@@ -259,12 +242,12 @@ class ReviewAPITest(APITestCase):
         }
 
         # Неправильное создание отзыва и проверка
-        invalid_normal_response = self.normal_client.post(
+        invalid_admin_response = self.admin_client.post(
             self.reviews_list_url, data=invalid_review_data,
         )
-        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
     
-    def test_normal_user_cannot_create_review_without_rating(self):
+    def test_admin_user_cannot_create_review_without_rating(self):
         # Неверные данные для отзыва
         invalid_review_data = {
             'product': self.product3.slug,
@@ -272,12 +255,12 @@ class ReviewAPITest(APITestCase):
         }
 
         # Неправильное создание отзыва и проверка
-        invalid_normal_response = self.normal_client.post(
+        invalid_admin_response = self.admin_client.post(
             self.reviews_list_url, data=invalid_review_data,
         )
-        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
     
-    def test_normal_user_cannot_create_review_with_rating_gt_5(self):
+    def test_admin_user_cannot_create_review_with_rating_gt_5(self):
         # Неверные данные для отзыва
         invalid_review_data = {
             'product': self.product3.slug,
@@ -286,13 +269,13 @@ class ReviewAPITest(APITestCase):
         }
 
         # Неправильное создание отзыва и проверка
-        invalid_normal_response = self.normal_client.post(
+        invalid_admin_response = self.admin_client.post(
             self.reviews_list_url, data=invalid_review_data,
         )
-        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(invalid_normal_response.data['rating'][0], 'Рейтинг не может быть больше 5')
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['rating'][0], 'Рейтинг не может быть больше 5')
     
-    def test_normal_user_cannot_create_review_with_rating_lt_1(self):
+    def test_admin_user_cannot_create_review_with_rating_lt_1(self):
         # Неверные данные для отзыва
         invalid_review_data = {
             'product': self.product3.slug,
@@ -301,13 +284,13 @@ class ReviewAPITest(APITestCase):
         }
 
         # Неправильное создание отзыва и проверка
-        invalid_normal_response = self.normal_client.post(
+        invalid_admin_response = self.admin_client.post(
             self.reviews_list_url, data=invalid_review_data,
         )
-        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(invalid_normal_response.data['rating'][0], 'Рейтинг не может быть меньше 1')
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['rating'][0], 'Рейтинг не может быть меньше 1')
     
-    def test_normal_user_cannot_create_review_if_his_own_review_for_this_product_already_exists(self):
+    def test_admin_user_cannot_create_review_if_his_own_review_for_this_product_already_exists(self):
         # Данные для отзыва
         review_data = {
             'product': self.product1.slug,
@@ -316,13 +299,38 @@ class ReviewAPITest(APITestCase):
         }
 
         # Неправильное создание отзыва и проверка
-        invalid_normal_response = self.normal_client.post(
+        invalid_admin_response = self.admin_client.post(
             self.reviews_list_url, data=review_data,
         )
-        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(invalid_normal_response.data['product'][0], 'Вы уже оставляли отзыв на этот товаром')
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['product'][0], 'Вы уже оставляли отзыв на этот товаром')
 
-    def test_normal_user_cannot_create_review_if_this_product_is_not_delivered(self):
+    def test_normal_user_cannot_create_review_if_product_is_not_delivered(self):
+        # Создание недоставленного заказа
+        not_delivered_order = Order.objects.create(
+            order_id=uuid4(),
+            user=self.normal_user,
+            full_name='Test full name',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.PENDING,
+            yookassa_id=str(uuid4()),
+        )
+
+        # Создание единицы заказа
+        OrderItem.objects.create(
+            order=not_delivered_order,
+            product=self.product2,
+            price=self.product2.price,
+            quantity=1,
+        )
+        
+        # Перерасчет цены заказа
+        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
+        not_delivered_order.save(update_fields=['total_price'])
+
         # Данные для отзыва
         review_data = {
             'product': self.product2.slug,
@@ -337,6 +345,56 @@ class ReviewAPITest(APITestCase):
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(invalid_normal_response.data['product'][0], 'Вам не доставляли этот товар')
     
+    def test_admin_user_can_create_review_if_product_is_not_delivered(self):
+        # Создание недоставленного заказа
+        not_delivered_order = Order.objects.create(
+            order_id=uuid4(),
+            user=self.admin_user,
+            full_name='Test full name admin',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.PENDING,
+            yookassa_id=str(uuid4()),
+        )
+
+        # Создание единицы заказа
+        OrderItem.objects.create(
+            order=not_delivered_order,
+            product=self.product2,
+            price=self.product2.price,
+            quantity=1,
+        )
+        
+        # Перерасчет цены заказа
+        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
+        not_delivered_order.save(update_fields=['total_price'])
+
+        # Данные для отзыва
+        review_data = {
+            'product': self.product2.slug,
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Создание отзыва и проверка
+        created_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(created_admin_response.status_code, status.HTTP_201_CREATED)
+
+        # Проверка на совпадение отзыва
+        data = created_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+
     def test_normal_user_can_create_review(self):
         # Данные для отзыва
         review_data = {
@@ -357,7 +415,234 @@ class ReviewAPITest(APITestCase):
 
         # Проверка на совпадения в отзыве
         new_review = Review.objects.get(id=data['id'])
-        self.check_review_in_review_data(review_data=created_normal_response.data, review=new_review)
+        self.check_review_in_review_data(review_data=data, review=new_review)
         review_product = new_review.product
         self.assertEqual(review_product.slug, data['product_slug'])
         self.assertEqual(review_product.title, data['product_title'])
+
+    def test_anon_user_cannot_patch_review(self):
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'product': self.product1.slug,
+            'comment': 'new test review comment',
+        }
+        
+        # Неправильная попытка частично изменить отзыв и проверка
+        invalid_anon_response = self.anon_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_patch_other_review(self):
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Неправильная попытка частично изменить отзыв и проверка
+        invalid_normal_response = self.normal_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_can_patch_other_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Частичное измение отзыва и проверка
+        updated_admin_response = self.admin_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.admin_user, product=self.product1, comment=old_review.comment).exists()
+        )
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertEqual(new_review.rating, old_review.rating)
+        self.assertNotEqual(new_review.comment, old_review.comment)
+
+    def test_normal_user_can_patch_his_own_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Частичное измение отзыва и проверка
+        updated_normal_response = self.normal_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_normal_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1, comment=old_review.comment).exists()
+        )
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+
+        # Сравнение со старым отзывом
+        self.assertEqual(new_review.rating, old_review.rating)
+        self.assertNotEqual(new_review.comment, old_review.comment)
+
+    def test_anon_user_cannot_put_review(self):
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
+        }
+        
+        # Неправильная попытка полностью изменить отзыв и проверка
+        invalid_anon_response = self.anon_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_put_other_review(self):
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
+        }
+        
+        # Неправильная попытка полностью изменить отзыв и проверка
+        invalid_normal_response = self.normal_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_can_put_other_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
+        }
+        
+        # Частичное измение отзыва и проверка
+        updated_admin_response = self.admin_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1).exists()
+        )
+
+        # Проверка на совпадения в ответе отзыва
+        new_review = Review.objects.get(id=data['id'])
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertNotEqual(review_product.slug, old_review.product.slug)
+
+    def test_normal_user_can_put_his_own_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
+        }
+        
+        # Полное измение отзыва и проверка
+        updated_normal_response = self.normal_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_normal_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1).exists()
+        )
+
+        # Проверка на совпадения в ответе отзыва
+        new_review = Review.objects.get(id=data['id'])
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertNotEqual(review_product.slug, old_review.product.slug)
+
+    def test_anon_user_cannot_delete_review(self):
+        # Неправильное удаление отзыва и проверка
+        invalid_anon_response = self.anon_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
+        )
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_delete_other_review(self):
+        # Неправильное удаление отзыва и проверка
+        invalid_normal_response = self.normal_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk)
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+    
+    def test_admin_user_can_delete_other_review(self):
+        # Удаление отзыва и проверка
+        deleted_admin_response = self.admin_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
+        )
+        self.assertEqual(deleted_admin_response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Проверка на несуществование отзыва
+        self.assertFalse(Review.objects.filter(id=self.product1_normal_review.pk).exists())
+    
+    def test_normal_user_can_delete_his_own_review(self):
+        # Удаление отзыва и проверка
+        deleted_normal_response = self.normal_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
+        )
+        self.assertEqual(deleted_normal_response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Проверка на несуществование отзыва
+        self.assertFalse(Review.objects.filter(id=self.product1_normal_review.pk).exists())

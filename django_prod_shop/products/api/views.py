@@ -6,6 +6,7 @@ from rest_framework import filters
 from django_filters import rest_framework as dj_filters
 
 from django.db.models import Prefetch, Avg, Count
+from django.db.models.functions import Round
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
@@ -39,7 +40,7 @@ class ProductViewSet(ModelViewSet):
         elif self.action == 'retrieve':
             qs = qs.prefetch_related(
                 Prefetch('reviews', queryset=Review.objects.select_related('user'))
-            ).annotate(rating=Avg('reviews__rating'), reviews_count=Count('reviews'))
+            ).annotate(rating=Round(Avg('reviews__rating'), precision=1), reviews_count=Count('reviews'))
         
         if not self.request.user.has_perm('products.manage_products'):
             return qs.filter(is_active=True)
