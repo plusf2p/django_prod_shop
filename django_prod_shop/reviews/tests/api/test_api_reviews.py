@@ -1,534 +1,677 @@
-from django.urls import reverse
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
+from decimal import Decimal
+from uuid import uuid4
+
+from django.core.cache import cache
 from django.core.management import call_command
+from django.contrib.auth import get_user_model
+from django.urls import reverse
 
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
-from django_prod_shop.users.models import Profile
-from django_prod_shop.products.models import Product, Category
+from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
+from django_prod_shop.products.models import Category, Product
+from django_prod_shop.reviews.models import Review
+
+
+user_model = get_user_model()
 
 
 class ReviewAPITest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        
+        # Создание ролей
         call_command('create_groups')
-
-    def setUp(self):
-        self.client = APIClient()
-        self.anon_client = APIClient()
-        self.admin_client = APIClient()
-
+        
         ### Users ####
 
-        # Регистрация пользователей
-        self.normal_user_data = {
+        # Создание обычного пользователя
+        cls.normal_user_data = {
             'email': 'test_user1@mail.ru',
-            'password1': '12345678',
-            'password2': '12345678',
+            'password': 'test_user1_password!',
         }
-        self.client.post(reverse('users:register'), data=self.normal_user_data)
+        cls.normal_user = user_model.objects.create_user(
+            email=cls.normal_user_data['email'], 
+            password=cls.normal_user_data['password'],
+            is_active=True,
+        )
 
-        # Логин обычного пользователя
-        response = self.client.post(reverse('users:token_access'), data={
-            'email': self.normal_user_data.get('email'),
-            'password': self.normal_user_data.get('password1'),
-        })
-        self.access_token = response.data.get('access')
-        
-        # Создание админа
-        self.admin_user_data = {
+        # Создание админа (суперюзера)
+        cls.admin_user_data = {
             'email': 'admin@mail.ru',
-            'password1': 'admin12345',
-            'password2': 'admin12345',
+            'password': 'admin_password!',
         }
-        self.admin_client.post(reverse('users:register'), data=self.admin_user_data)
+        cls.admin_user = user_model.objects.create_superuser(
+            email=cls.admin_user_data['email'], 
+            password=cls.admin_user_data['password'],
+            is_active=True,
+        )
 
-        # Назначение пользователя админ правами
-        self.admin_profile = Profile.objects.get(user__email=self.admin_user_data['email'])
-        user_model = get_user_model()
-        admin_user = user_model.objects.get(pk=self.admin_profile.pk)
-        admin_group = Group.objects.get(name='Admin')
-        admin_user.groups.add(admin_group)
-        admin_user.is_staff = True
-        admin_user.is_superuser = True
-        admin_user.save()
-
-        # Логин админа
-        response = self.admin_client.post(reverse('users:token_access'), data={
-            'email': self.admin_user_data.get('email'),
-            'password': self.admin_user_data.get('password1'),
-        })
-        self.access_token_admin = response.data.get('access')
-        
         ### Products ###
 
         # Создание стартовой категории
-        self.category = Category.objects.create(
+        cls.category = Category.objects.create(
             title='Test category', description='test description', slug='test-category'
         )
         
         # Создание двух стартовых товаров
-        self.product1 = Product.objects.create(
-            title='Test title of first product', category=self.category, quantity=50, reserved_quantity=5, 
-            description='1', slug='test-title-of-first-product', price=400, sell_counter=50, is_active=True,
+        cls.product1 = Product.objects.create(
+            title='Test title of first product', category=cls.category, quantity=10, reserved_quantity=5, 
+            description='1', slug='test-title-of-first-product', price=800, is_active=True,
         )
-        self.product2 = Product.objects.create(
-            title='Test title of second product', category=self.category, quantity=100, reserved_quantity=10, 
-            description='2', slug='test-title-of-second-product', price=200, sell_counter=0, is_active=True,
+        cls.product2 = Product.objects.create(
+            title='Test title of second product', category=cls.category, quantity=100, reserved_quantity=10, 
+            description='2', slug='test-title-of-second-product', price=400, is_active=True,
         )
-
-        ### Cart ###
-
-        # Создание запроса с товарами
-        self.product_data = {
-            'product_slug': self.product1.slug,
-            'quantity': 10,
-        }
-        self.product_data_2 = {
-            'product_slug': self.product2.slug,
-            'quantity': 15,
-        }
-
-        # Добавление товара в корзину обычным пользователем
-        response = self.client.post(
-            reverse('cart:cart-add-to-cart'), data=self.product_data, headers={'Authorization': f'Bearer {self.access_token}'}
+        cls.product3 = Product.objects.create(
+            title='Test title of third product', category=cls.category, quantity=99, reserved_quantity=9, 
+            description='3', slug='test-title-of-third-product', price=200, is_active=True,
         )
 
-        # Добавление товара в корзину админом
-        response = self.admin_client.post(
-            reverse('cart:cart-add-to-cart'), data=self.product_data_2, headers={'Authorization': f'Bearer {self.access_token_admin}'}
-        )
+        # Объявление url
+        cls.reviews_list_url = reverse('reviews:reviews-list')
+        cls.product1_detail_url = reverse('products:product-detail', kwargs={'slug': cls.product1.slug})
 
         ### Orders ###
 
-        # Создание заказа
-        self.order_data = {
-            'full_name': 'Ildar Bbb',
-            'address': 'Gagarina 20',
-            'city': 'Moscow',
-            'phone': '+88005553535',
-        }
+        # Создание заказов
+        cls.order_normal = Order.objects.create(
+            order_id=uuid4(),
+            user=cls.normal_user,
+            full_name='Test full name',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.DELIVERED,
+            yookassa_id=str(uuid4()),
+        )
 
-        # Создание статуса для заказа
-        self.status_data = {
-            'status': 'delivered'
-        }
+        cls.order_normal_without_reivews = Order.objects.create(
+            order_id=uuid4(),
+            user=cls.normal_user,
+            full_name='Test full name',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.DELIVERED,
+            yookassa_id=str(uuid4()),
+        )
+
+        cls.order_admin = Order.objects.create(
+            order_id=uuid4(),
+            user=cls.admin_user,
+            full_name='Test full name admin',
+            phone='+79999999999',
+            address='Test address admin',
+            city='Test city admin',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.DELIVERED,
+            yookassa_id=str(uuid4()),
+        )
+
+        # Создание элементов заказов
+        OrderItem.objects.create(
+            order=cls.order_normal,
+            product=cls.product1,
+            price=cls.product1.price,
+            quantity=1,
+        )
+        OrderItem.objects.create(
+            order=cls.order_normal_without_reivews,
+            product=cls.product3,
+            price=cls.product3.price,
+            quantity=1,
+        )
+        OrderItem.objects.create(
+            order=cls.order_admin,
+            product=cls.product1,
+            price=cls.product1.price,
+            quantity=1,
+        )
+
+        # Переопределение цен
+        cls.order_normal.total_price = cls.order_normal.total_price_after_discount
+        cls.order_normal.save(update_fields=['total_price'])
+
+        cls.order_normal_without_reivews.total_price = cls.order_normal_without_reivews.total_price_after_discount
+        cls.order_normal_without_reivews.save(update_fields=['total_price'])
+
+        cls.order_admin.total_price = cls.order_admin.total_price_after_discount
+        cls.order_admin.save(update_fields=['total_price'])
 
         ### Reviews ###
 
-        self.reivew_data_1 = {
-            'product': self.product1.slug,
-            'comment': 'Test comment 1',
-            'rating': 4,
-        }
+        # Создание отзывов
+        cls.product1_normal_review = Review.objects.create(
+            product=cls.product1,
+            user=cls.normal_user,
+            comment='product 1 review comment normal',
+            rating=5,
+        )
+        cls.product1_admin_review = Review.objects.create(
+            product=cls.product1,
+            user=cls.admin_user,
+            comment='product 1 review comment admin',
+            rating=1,
+        )
 
-        self.reivew_data_2 = {
-            'product': self.product2.slug,
-            'comment': 'Test comment 2',
-            'rating': 3,
-        }
+    def setUp(self):
+        cache.clear()
+        self.admin_client = APIClient()
+        self.normal_client = APIClient()
+        self.anon_client = APIClient()
+
+        # Авторизация админа, и двух обычных пользователей
+        self.normal_client.force_authenticate(user=self.normal_user)
+        self.admin_client.force_authenticate(user=self.admin_user)
     
-    def test_get_list_review__anon_and_normal_and_admin_users(self):
-        # Попытка получить все отзывы анонимно и проверка
-        response = self.anon_client.get(reverse('reviews:reviews-list'))
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    def get_review_detail_with_pk(self, pk):
+        return reverse('reviews:reviews-detail', kwargs={'id': pk})
 
-        # Попытка получить все отзывы обычным пользователем и проверка
-        response = self.client.get(
-            reverse('reviews:reviews-list'), headers={'Authorization': f'Bearer {self.access_token}'},
+    def check_review_in_review_data(self, review_data, review):
+        self.assertEqual(review_data['comment'], review.comment)
+        self.assertEqual(review_data['rating'], review.rating)
+        self.assertEqual(review_data['user_id'], review.user.pk)
+
+    def check_contains_review_in_product_response(self, product_response, review):
+        for review_item in product_response.data['reviews']:
+            if review.pk == review_item['id']:
+                self.check_review_in_review_data(review_data=review_item, review=review)
+                return
+        self.fail(f"Отзыв с ID '{review_item.pk}' не найден в ответе")
+
+    def test_anon_user_cannot_get_reviews_list(self):
+        # Неправильное получение отзывов и проверка
+        invalid_anon_response = self.anon_client.get(self.reviews_list_url)
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_get_reviews_list(self):
+        # Неправильное получение отзывов и проверка
+        invalid_anon_response = self.normal_client.get(self.reviews_list_url)
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_can_get_ordered_reviews_list(self):
+        # Получение неотфильтрованных отзывов у товара и проверка
+        list_admin_response = self.admin_client.get(self.reviews_list_url)
+        self.assertEqual(list_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка неотфильтрованного списка отзывов
+        self.assertEqual(list_admin_response.data[0]['id'], self.product1_admin_review.pk)
+        self.assertEqual(list_admin_response.data[1]['id'], self.product1_normal_review.pk)
+
+        # Получение отфильтрованных отзывов у товара и проверка
+        ordered_list_admin_response = self.admin_client.get(f'{reverse('reviews:reviews-list')}?ordering=created_at')
+        self.assertEqual(list_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка неотфильтрованного списка отзывов
+        self.assertEqual(ordered_list_admin_response.data[0]['id'], self.product1_normal_review.pk)
+        self.assertEqual(ordered_list_admin_response.data[1]['id'], self.product1_admin_review.pk)
+    
+    def test_assert_rating_values_in_proudct(self):
+        # Получение всех отзывов у товара и проверка
+        product_response = self.anon_client.get(self.product1_detail_url)
+        self.assertEqual(product_response.status_code, status.HTTP_200_OK)
+
+        # Расчет рейтинга и сравнение его с существующим
+        avg_rating = round(
+            (int(self.product1_normal_review.rating) + int(self.product1_admin_review.rating)
+        ) / 2, 1)
+        self.assertEqual(product_response.data['rating'], avg_rating)
+        self.assertEqual(product_response.data['reviews_count'], 2)
+
+    def test_anon_user_can_get_reviews_list_in_product(self):
+        # Получение всех отзывов у товара и проверка
+        product_response = self.anon_client.get(self.product1_detail_url)
+        self.assertEqual(product_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие отзывов в товаре
+        self.check_contains_review_in_product_response(
+            product_response=product_response, review=self.product1_normal_review,
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Попытка получить все отзывы админом и проверка
-        response = self.admin_client.get(
-            reverse('reviews:reviews-list'), headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        self.check_contains_review_in_product_response(
+            product_response=product_response,  review=self.product1_admin_review, 
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_wrong_create_review_without_delivery_product_status_by_anon_and_normal_users(self):
-        # Неправильная попытка создать отзыв (без доставленного товара) анонимно с правильными данными и проверка
-        response = self.anon_client.post(reverse('reviews:reviews-list'), data=self.reivew_data_1)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-        # Неправильная попытка создать отзыв (без доставленного товара) обычным пользователем 
-        # с правильными данными и проверка
-        response = self.client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_1, 
-            headers={'Authorization': f'Bearer {self.access_token}'},
+    
+    def test_anon_user_can_get_review_detail(self):
+        # Получение детального отзыва и проверка
+        detail_anon_response = self.anon_client.get(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(detail_anon_response.status_code, status.HTTP_200_OK)
 
-    def test_right_create_review_and_get_it_by_normal_and_admin_users(self):
-        # Создание заказа обычным пользователем
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data,
-            headers={'Authorization': f'Bearer {self.access_token}'},
+        # Проверка на соответствие отзыва
+        self.check_review_in_review_data(
+            review_data=detail_anon_response.data, review=self.product1_normal_review, 
         )
-        order_id = response.data.get('order_id')
-
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв обычным пользователем с правильными данными и проверка
-        response = self.client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_1, 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        review_id = response.data.get('id')
-
-        # Попытка получить созданный отзыв обычным пользователем по id и проверка
-        response = self.client.get(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], self.reivew_data_1.get('comment'))
-
-        # Правильная попытка создать отзыв админом с правильными данными и проверка
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        review_id = response.data.get('id')
-
-        # Попытка получить созданный отзыв обычным пользователем по id и проверка
-        response = self.admin_client.get(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], self.reivew_data_2.get('comment'))
-
-    def test_wrong_put_update_review_by_anon_and_admin_users(self):
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв админом с правильными данными
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        review_id = response.data.get('id')
-
-        # Новый неправильный отзыв
-        wrong_new_review_data = {
-            'product': self.product2.slug,
-            'rating': 50,
-        }
-
-        # Неправильная попытка полностью изменить созданный отзыв анонимно и проверка
-        response = self.anon_client.put(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
-        )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-        # Неправильная попытка полностью изменить созданный отзыв админом и проверка
-        response = self.admin_client.put(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_right_put_update_review_by_normal_and_admin_user(self):
-        # Создание заказа обычным пользователем
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data,
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        order_id = response.data.get('order_id')
-
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв обычным пользователем
-        response = self.client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_1, 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        review_id = response.data.get('id')
-
-        # Новый правильный отзыв
-        new_review_data = {
+    
+    def test_anon_user_cannot_create_review(self):
+        # Данные для отзыва
+        review_data = {
             'product': self.product1.slug,
-            'comment': '321',
+            'comment': 'test review comment',
             'rating': 1,
         }
 
-        # Правильная попытка полностью изменить отзыв созданный обычным пользователем и проверка
-        response = self.client.put(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        # Неправильное создание отзыва и проверка
+        invalid_anon_response = self.anon_client.post(
+            self.reviews_list_url, data=review_data,
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], new_review_data.get('comment'))
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_admin_user_cannot_create_review_with_not_exists_product(self):
+        # Неверные данные для отзыва
+        invalid_review_data = {
+            'product': 'not-exists-product',
+            'comment': 'test review comment',
+            'rating': 1,
+        }
 
-        # Правильная попытка создать отзыв админом
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        # Неправильное создание отзыва и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=invalid_review_data,
         )
-        review_id = response.data.get('id')
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_admin_user_cannot_create_review_without_rating(self):
+        # Неверные данные для отзыва
+        invalid_review_data = {
+            'product': self.product3.slug,
+            'comment': 'test review comment',
+        }
 
-        # Новый правильный отзыв
-        new_review_data = {
+        # Неправильное создание отзыва и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=invalid_review_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_admin_user_cannot_create_review_with_rating_gt_5(self):
+        # Неверные данные для отзыва
+        invalid_review_data = {
+            'product': self.product3.slug,
+            'comment': 'test review comment',
+            'rating': 6,
+        }
+
+        # Неправильное создание отзыва и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=invalid_review_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['rating'][0], 'Рейтинг не может быть больше 5')
+    
+    def test_admin_user_cannot_create_review_with_rating_lt_1(self):
+        # Неверные данные для отзыва
+        invalid_review_data = {
+            'product': self.product3.slug,
+            'comment': 'test review comment',
+            'rating': 0,
+        }
+
+        # Неправильное создание отзыва и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=invalid_review_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['rating'][0], 'Рейтинг не может быть меньше 1')
+    
+    def test_admin_user_cannot_create_review_if_his_own_review_for_this_product_already_exists(self):
+        # Данные для отзыва
+        review_data = {
+            'product': self.product1.slug,
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Неправильное создание отзыва и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['product'][0], 'Вы уже оставляли отзыв на этот товаром')
+
+    def test_normal_user_cannot_create_review_if_product_is_not_delivered(self):
+        # Создание недоставленного заказа
+        not_delivered_order = Order.objects.create(
+            order_id=uuid4(),
+            user=self.normal_user,
+            full_name='Test full name',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.PENDING,
+            yookassa_id=str(uuid4()),
+        )
+
+        # Создание единицы заказа
+        OrderItem.objects.create(
+            order=not_delivered_order,
+            product=self.product2,
+            price=self.product2.price,
+            quantity=1,
+        )
+        
+        # Перерасчет цены заказа
+        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
+        not_delivered_order.save(update_fields=['total_price'])
+
+        # Данные для отзыва
+        review_data = {
             'product': self.product2.slug,
-            'comment': '123',
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Неправильное создание отзыва и проверка
+        invalid_normal_response = self.normal_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_normal_response.data['product'][0], 'Вам не доставляли этот товар')
+    
+    def test_admin_user_can_create_review_if_product_is_not_delivered(self):
+        # Создание недоставленного заказа
+        not_delivered_order = Order.objects.create(
+            order_id=uuid4(),
+            user=self.admin_user,
+            full_name='Test full name admin',
+            phone='+78005553535',
+            address='Test address',
+            city='Test city',
+            total_price=Decimal('1.00'),
+            status=StatusChoices.PENDING,
+            yookassa_id=str(uuid4()),
+        )
+
+        # Создание единицы заказа
+        OrderItem.objects.create(
+            order=not_delivered_order,
+            product=self.product2,
+            price=self.product2.price,
+            quantity=1,
+        )
+        
+        # Перерасчет цены заказа
+        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
+        not_delivered_order.save(update_fields=['total_price'])
+
+        # Данные для отзыва
+        review_data = {
+            'product': self.product2.slug,
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Создание отзыва и проверка
+        created_admin_response = self.admin_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(created_admin_response.status_code, status.HTTP_201_CREATED)
+
+        # Проверка на совпадение отзыва
+        data = created_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+
+    def test_normal_user_can_create_review(self):
+        # Данные для отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'test review comment',
+            'rating': 4,
+        }
+
+        # Создание отзыва и проверка
+        created_normal_response = self.normal_client.post(
+            self.reviews_list_url, data=review_data,
+        )
+        self.assertEqual(created_normal_response.status_code, status.HTTP_201_CREATED)
+
+        # Проверка на совпадение отзыва
+        data = created_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+
+    def test_anon_user_cannot_patch_review(self):
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'product': self.product1.slug,
+            'comment': 'new test review comment',
+        }
+        
+        # Неправильная попытка частично изменить отзыв и проверка
+        invalid_anon_response = self.anon_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_patch_other_review(self):
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Неправильная попытка частично изменить отзыв и проверка
+        invalid_normal_response = self.normal_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_user_can_patch_other_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Частичное измение отзыва и проверка
+        updated_admin_response = self.admin_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_admin_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.admin_user, product=self.product1, comment=old_review.comment).exists()
+        )
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertEqual(new_review.rating, old_review.rating)
+        self.assertNotEqual(new_review.comment, old_review.comment)
+
+    def test_normal_user_can_patch_his_own_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для частичного изменения отзыва
+        review_data = {
+            'comment': 'new test review comment',
+        }
+        
+        # Частичное измение отзыва и проверка
+        updated_normal_response = self.normal_client.patch(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
+        )
+        self.assertEqual(updated_normal_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на измененность отзыва
+        data = updated_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1, comment=old_review.comment).exists()
+        )
+
+        # Проверка на совпадения в отзыве
+        new_review = Review.objects.get(id=data['id'])
+        self.check_review_in_review_data(review_data=data, review=new_review)
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+
+        # Сравнение со старым отзывом
+        self.assertEqual(new_review.rating, old_review.rating)
+        self.assertNotEqual(new_review.comment, old_review.comment)
+
+    def test_anon_user_cannot_put_review(self):
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
             'rating': 3,
         }
-
-        # Правильная попытка полностью изменить отзыв созданный админом и проверка
-        response = self.admin_client.put(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        
+        # Неправильная попытка полностью изменить отзыв и проверка
+        invalid_anon_response = self.anon_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], new_review_data.get('comment'))
-
-    def test_wrong_patch_update_review_by_anon_and_admin_users(self):
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв админом с правильными данными
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        review_id = response.data.get('id')
-
-        # Новый неправильный отзыв
-        wrong_new_review_data = {
-            'product': self.product2.slug,
-            'rating': 10,
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_put_other_review(self):
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
         }
-
-        # Неправильная попытка частично изменить созданный отзыв админом и проверка
-        response = self.anon_client.patch(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
+        
+        # Неправильная попытка полностью изменить отзыв и проверка
+        invalid_normal_response = self.normal_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk),
+            data=review_data,
         )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
 
-        # Неправильная попытка частично изменить созданный отзыв админом и проверка
-        response = self.admin_client.patch(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=wrong_new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_admin_user_can_put_other_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
 
-    def test_right_patch_update_review_by_normal_and_admin_user(self):
-        # Создание заказа обычным пользователем
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data,
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        order_id = response.data.get('order_id')
-
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв обычным пользователем
-        response = self.client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_1, 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        review_id = response.data.get('id')
-
-        # Новый правильный отзыв
-        new_review_data = {
-            'product': self.product1.slug,
-            'comment': '321',
-            'rating': self.reivew_data_1.get('rating'),
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
         }
-
-        # Правильная попытка частично изменить отзыв созданный обычным пользователем и проверка
-        response = self.client.patch(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        
+        # Частичное измение отзыва и проверка
+        updated_admin_response = self.admin_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], new_review_data.get('comment'))
+        self.assertEqual(updated_admin_response.status_code, status.HTTP_200_OK)
 
-        # Правильная попытка создать отзыв админом
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        # Проверка на измененность отзыва
+        data = updated_admin_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1).exists()
         )
-        review_id = response.data.get('id')
 
-        # Новый правильный отзыв
-        new_review_data = {
-            'product': self.product2.slug,
-            'comment': '123',
-            'rating': self.reivew_data_2.get('rating'),
+        # Проверка на совпадения в ответе отзыва
+        new_review = Review.objects.get(id=data['id'])
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertNotEqual(review_product.slug, old_review.product.slug)
+
+    def test_normal_user_can_put_his_own_review(self):
+        # Записываем старый отзыв
+        old_review = self.product1_normal_review
+
+        # Данные для полного изменения отзыва
+        review_data = {
+            'product': self.product3.slug,
+            'comment': 'new test review comment',
+            'rating': 3,
         }
-
-        # Правильная попытка частично изменить отзыв созданный админом и проверка
-        response = self.admin_client.patch(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}), data=new_review_data,
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        
+        # Полное измение отзыва и проверка
+        updated_normal_response = self.normal_client.put(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk),
+            data=review_data,
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['comment'], new_review_data.get('comment'))
+        self.assertEqual(updated_normal_response.status_code, status.HTTP_200_OK)
 
-    def test_wrong_delete_review_by_anon_and_normal_and_admin_users(self):
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
+        # Проверка на измененность отзыва
+        data = updated_normal_response.data
+        self.assertTrue(Review.objects.filter(id=data['id']).exists())
+        self.assertFalse(Review.objects.filter(
+            user=self.normal_user, product=self.product1).exists()
         )
 
-        # Правильная попытка создать отзыв админом с правильными данными
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        review_id = response.data.get('id')
+        # Проверка на совпадения в ответе отзыва
+        new_review = Review.objects.get(id=data['id'])
+        review_product = new_review.product
+        self.assertEqual(review_product.slug, data['product_slug'])
+        self.assertEqual(review_product.title, data['product_title'])
+        
+        # Сравнение со старым отзывом
+        self.assertNotEqual(review_product.slug, old_review.product.slug)
 
-        # Неправильная попытка удалить созданный отзыв анонимно и проверка
-        response = self.anon_client.delete(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}),
+    def test_anon_user_cannot_delete_review(self):
+        # Неправильное удаление отзыва и проверка
+        invalid_anon_response = self.anon_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
         )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_normal_user_cannot_delete_other_review(self):
+        # Неправильное удаление отзыва и проверка
+        invalid_normal_response = self.normal_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_admin_review.pk)
+        )
+        self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+    
+    def test_admin_user_can_delete_other_review(self):
+        # Удаление отзыва и проверка
+        deleted_admin_response = self.admin_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
+        )
+        self.assertEqual(deleted_admin_response.status_code, status.HTTP_204_NO_CONTENT)
 
-        # Неправильная попытка удалить созданный отзыв обычным пользователем и проверка
-        response = self.client.delete(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}),
-            headers={'Authorization': f'Bearer {self.access_token}'},
+        # Проверка на несуществование отзыва
+        self.assertFalse(Review.objects.filter(id=self.product1_normal_review.pk).exists())
+    
+    def test_normal_user_can_delete_his_own_review(self):
+        # Удаление отзыва и проверка
+        deleted_normal_response = self.normal_client.delete(
+            self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(deleted_normal_response.status_code, status.HTTP_204_NO_CONTENT)
 
-        # Неправильная попытка удалить созданный отзыв админом и проверка
-        response = self.client.delete(
-            reverse('reviews:reviews-detail', kwargs={'id': 444}),
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_right_delete_review_by_normal_and_admin_user(self):
-        # Создание заказа обычным пользователем
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data,
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        order_id = response.data.get('order_id')
-
-        # Создание заказа админом
-        response = self.client.post(
-            reverse('orders:orders-list'), data=self.order_data, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        order_id_admin = response.data.get('order_id')
-
-        # Изменение статуса заказов админом
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        response = self.admin_client.post(
-            reverse('orders:change_order_status', kwargs={'order_id': order_id_admin}), 
-            data=self.status_data, headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-
-        # Правильная попытка создать отзыв обычным пользователем
-        response = self.client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_1, 
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        review_id = response.data.get('id')
-
-        # Правильная попытка удалить созданный отзыв обычным пользователем и проверка
-        response = self.client.delete(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}),
-            headers={'Authorization': f'Bearer {self.access_token}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # Правильная попытка создать отзыв админом
-        response = self.admin_client.post(
-            reverse('reviews:reviews-list'), data=self.reivew_data_2, 
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        review_id = response.data.get('id')
-
-        # Правильная попытка удалить созданный отзыв админом и проверка
-        response = self.admin_client.delete(
-            reverse('reviews:reviews-detail', kwargs={'id': review_id}),
-            headers={'Authorization': f'Bearer {self.access_token_admin}'},
-        )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        # Проверка на несуществование отзыва
+        self.assertFalse(Review.objects.filter(id=self.product1_normal_review.pk).exists())
