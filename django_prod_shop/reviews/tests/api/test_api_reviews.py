@@ -1,9 +1,11 @@
+from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 from django.core.cache import cache
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.urls import reverse
 
 from rest_framework.test import APITestCase, APIClient
@@ -89,7 +91,7 @@ class ReviewAPITest(APITestCase):
             yookassa_id=str(uuid4()),
         )
 
-        cls.order_normal_without_reivews = Order.objects.create(
+        cls.order_normal_without_reviews = Order.objects.create(
             order_id=uuid4(),
             user=cls.normal_user,
             full_name='Test full name',
@@ -121,7 +123,7 @@ class ReviewAPITest(APITestCase):
             quantity=1,
         )
         OrderItem.objects.create(
-            order=cls.order_normal_without_reivews,
+            order=cls.order_normal_without_reviews,
             product=cls.product3,
             price=cls.product3.price,
             quantity=1,
@@ -137,8 +139,8 @@ class ReviewAPITest(APITestCase):
         cls.order_normal.total_price = cls.order_normal.total_price_after_discount
         cls.order_normal.save(update_fields=['total_price'])
 
-        cls.order_normal_without_reivews.total_price = cls.order_normal_without_reivews.total_price_after_discount
-        cls.order_normal_without_reivews.save(update_fields=['total_price'])
+        cls.order_normal_without_reviews.total_price = cls.order_normal_without_reviews.total_price_after_discount
+        cls.order_normal_without_reviews.save(update_fields=['total_price'])
 
         cls.order_admin.total_price = cls.order_admin.total_price_after_discount
         cls.order_admin.save(update_fields=['total_price'])
@@ -182,7 +184,40 @@ class ReviewAPITest(APITestCase):
             if review.pk == review_item['id']:
                 self.check_review_in_review_data(review_data=review_item, review=review)
                 return
-        self.fail(f"Отзыв с ID '{review_item.pk}' не найден в ответе")
+        self.fail(f"Отзыв с ID '{review.pk}' не найден в ответе")
+    
+    def create_order(self, user, product, order_status, **new_data):
+        # Данные для заказа
+        data = {
+            'order_id': uuid4(),
+            'user': user,
+            'full_name': 'Test full name 321',
+            'phone': '+78005553535',
+            'address': 'Test address',
+            'city': 'Test city',
+            'total_price': Decimal('1.00'),
+            'status': order_status,
+            'yookassa_id': str(uuid4()),
+        }
+
+        data.update(new_data)
+        
+        # Создание заказа
+        order = Order.objects.create(**data)
+
+        # Создание единицы заказа
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            price=product.price,
+            quantity=1,
+        )
+
+        # Перерасчет цены заказа
+        order.total_price = order.total_price_after_discount
+        order.save(update_fields=['total_price'])
+
+        return order
 
     def test_anon_user_cannot_get_reviews_list(self):
         # Неправильное получение отзывов и проверка
@@ -195,7 +230,16 @@ class ReviewAPITest(APITestCase):
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_user_can_get_ordered_reviews_list(self):
-        # Получение неотфильтрованных отзывов у товара и проверка
+        # Переопределение времени создание на более очевидное
+        now = timezone.now()
+        Review.objects.filter(
+            user=self.normal_user, product=self.product1
+        ).update(created_at=now - timedelta(minutes=2))
+        Review.objects.filter(
+            user=self.admin_user, product=self.product1
+        ).update(created_at=now - timedelta(minutes=1))
+
+        # Получение неотфильтрованных отзывов и проверка
         list_admin_response = self.admin_client.get(self.reviews_list_url)
         self.assertEqual(list_admin_response.status_code, status.HTTP_200_OK)
 
@@ -203,15 +247,15 @@ class ReviewAPITest(APITestCase):
         self.assertEqual(list_admin_response.data[0]['id'], self.product1_admin_review.pk)
         self.assertEqual(list_admin_response.data[1]['id'], self.product1_normal_review.pk)
 
-        # Получение отфильтрованных отзывов у товара и проверка
-        ordered_list_admin_response = self.admin_client.get(f'{reverse('reviews:reviews-list')}?ordering=created_at')
-        self.assertEqual(list_admin_response.status_code, status.HTTP_200_OK)
+        # Получение отфильтрованных отзывов и проверка
+        ordered_list_admin_response = self.admin_client.get(f"{reverse('reviews:reviews-list')}?ordering=created_at")
+        self.assertEqual(ordered_list_admin_response.status_code, status.HTTP_200_OK)
 
         # Проверка неотфильтрованного списка отзывов
         self.assertEqual(ordered_list_admin_response.data[0]['id'], self.product1_normal_review.pk)
         self.assertEqual(ordered_list_admin_response.data[1]['id'], self.product1_admin_review.pk)
     
-    def test_assert_rating_values_in_proudct(self):
+    def test_assert_rating_values_in_product(self):
         # Получение всех отзывов у товара и проверка
         product_response = self.anon_client.get(self.product1_detail_url)
         self.assertEqual(product_response.status_code, status.HTTP_200_OK)
@@ -336,29 +380,9 @@ class ReviewAPITest(APITestCase):
 
     def test_normal_user_cannot_create_review_if_product_is_not_delivered(self):
         # Создание недоставленного заказа
-        not_delivered_order = Order.objects.create(
-            order_id=uuid4(),
-            user=self.normal_user,
-            full_name='Test full name',
-            phone='+78005553535',
-            address='Test address',
-            city='Test city',
-            total_price=Decimal('1.00'),
-            status=StatusChoices.PENDING,
-            yookassa_id=str(uuid4()),
+        self.create_order(
+            user=self.normal_user, product=self.product2, order_status=StatusChoices.PENDING
         )
-
-        # Создание единицы заказа
-        OrderItem.objects.create(
-            order=not_delivered_order,
-            product=self.product2,
-            price=self.product2.price,
-            quantity=1,
-        )
-        
-        # Перерасчет цены заказа
-        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
-        not_delivered_order.save(update_fields=['total_price'])
 
         # Данные для отзыва
         review_data = {
@@ -376,29 +400,9 @@ class ReviewAPITest(APITestCase):
     
     def test_admin_user_can_create_review_if_product_is_not_delivered(self):
         # Создание недоставленного заказа
-        not_delivered_order = Order.objects.create(
-            order_id=uuid4(),
-            user=self.admin_user,
-            full_name='Test full name admin',
-            phone='+78005553535',
-            address='Test address',
-            city='Test city',
-            total_price=Decimal('1.00'),
-            status=StatusChoices.PENDING,
-            yookassa_id=str(uuid4()),
+        self.create_order(
+            user=self.admin_user, product=self.product2, order_status=StatusChoices.PENDING
         )
-
-        # Создание единицы заказа
-        OrderItem.objects.create(
-            order=not_delivered_order,
-            product=self.product2,
-            price=self.product2.price,
-            quantity=1,
-        )
-        
-        # Перерасчет цены заказа
-        not_delivered_order.total_price = not_delivered_order.total_price_after_discount
-        not_delivered_order.save(update_fields=['total_price'])
 
         # Данные для отзыва
         review_data = {
@@ -450,9 +454,12 @@ class ReviewAPITest(APITestCase):
         self.assertEqual(review_product.title, data['product_title'])
 
     def test_anon_user_cannot_patch_review(self):
+        old_comment = self.product1_normal_review.comment
+        old_rating = self.product1_normal_review.rating
+        old_product = self.product1_normal_review.product
+
         # Данные для частичного изменения отзыва
         review_data = {
-            'product': self.product1.slug,
             'comment': 'new test review comment',
         }
         
@@ -462,8 +469,18 @@ class ReviewAPITest(APITestCase):
             data=review_data,
         )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Проверка на неизменность в бд
+        self.product1_normal_review.refresh_from_db()
+        self.assertEqual(self.product1_normal_review.comment, old_comment)
+        self.assertEqual(self.product1_normal_review.rating, old_rating)
+        self.assertEqual(self.product1_normal_review.product, old_product)
     
     def test_normal_user_cannot_patch_other_review(self):
+        old_comment = self.product1_admin_review.comment
+        old_rating = self.product1_admin_review.rating
+        old_product = self.product1_admin_review.product
+
         # Данные для частичного изменения отзыва
         review_data = {
             'comment': 'new test review comment',
@@ -475,6 +492,12 @@ class ReviewAPITest(APITestCase):
             data=review_data,
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Проверка на неизменность в бд
+        self.product1_admin_review.refresh_from_db()
+        self.assertEqual(self.product1_admin_review.comment, old_comment)
+        self.assertEqual(self.product1_admin_review.rating, old_rating)
+        self.assertEqual(self.product1_admin_review.product, old_product)
 
     def test_admin_user_can_patch_other_review(self):
         # Записываем старый отзыв
@@ -496,7 +519,7 @@ class ReviewAPITest(APITestCase):
         data = updated_admin_response.data
         self.assertTrue(Review.objects.filter(id=data['id']).exists())
         self.assertFalse(Review.objects.filter(
-            user=self.admin_user, product=self.product1, comment=old_review.comment).exists()
+            user=self.normal_user, product=self.product1, comment=old_review.comment).exists()
         )
 
         # Проверка на совпадения в отзыве
@@ -545,6 +568,10 @@ class ReviewAPITest(APITestCase):
         self.assertNotEqual(new_review.comment, old_review.comment)
 
     def test_anon_user_cannot_put_review(self):
+        old_comment = self.product1_normal_review.comment
+        old_rating = self.product1_normal_review.rating
+        old_product = self.product1_normal_review.product
+
         # Данные для полного изменения отзыва
         review_data = {
             'product': self.product3.slug,
@@ -558,8 +585,18 @@ class ReviewAPITest(APITestCase):
             data=review_data,
         )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Проверка на неизменность в бд
+        self.product1_normal_review.refresh_from_db()
+        self.assertEqual(self.product1_normal_review.comment, old_comment)
+        self.assertEqual(self.product1_normal_review.rating, old_rating)
+        self.assertEqual(self.product1_normal_review.product, old_product)
     
     def test_normal_user_cannot_put_other_review(self):
+        old_comment = self.product1_admin_review.comment
+        old_rating = self.product1_admin_review.rating
+        old_product = self.product1_admin_review.product
+
         # Данные для полного изменения отзыва
         review_data = {
             'product': self.product3.slug,
@@ -573,6 +610,12 @@ class ReviewAPITest(APITestCase):
             data=review_data,
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Проверка на неизменность в бд
+        self.product1_admin_review.refresh_from_db()
+        self.assertEqual(self.product1_admin_review.comment, old_comment)
+        self.assertEqual(self.product1_admin_review.rating, old_rating)
+        self.assertEqual(self.product1_admin_review.product, old_product)
 
     def test_admin_user_can_put_other_review(self):
         # Записываем старый отзыв
@@ -648,6 +691,11 @@ class ReviewAPITest(APITestCase):
             self.get_review_detail_with_pk(pk=self.product1_normal_review.pk)
         )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Проверка на неизменность в бд
+        self.assertTrue(Review.objects.filter(
+            user=self.normal_user, product=self.product1,
+        ).exists())
     
     def test_normal_user_cannot_delete_other_review(self):
         # Неправильное удаление отзыва и проверка
@@ -655,6 +703,11 @@ class ReviewAPITest(APITestCase):
             self.get_review_detail_with_pk(pk=self.product1_admin_review.pk)
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Проверка на неизменность в бд
+        self.assertTrue(Review.objects.filter(
+            user=self.admin_user, product=self.product1,
+        ).exists())
     
     def test_admin_user_can_delete_other_review(self):
         # Удаление отзыва и проверка
