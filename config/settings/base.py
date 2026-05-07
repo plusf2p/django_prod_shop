@@ -382,7 +382,14 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Documentation of API endpoints of Django Shop",
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
+    'SERVE_AUTHENTICATION': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     "SCHEMA_PATH_PREFIX": "/api/",
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+    },
 }
 # Your stuff...
 # ------------------------------------------------------------------------------

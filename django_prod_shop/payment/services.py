@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.urls import reverse
 from django.db import transaction, IntegrityError
-from django.db.models import Prefetch, F
+from django.db.models import F
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from yookassa import Configuration, Payment as YooPayment
 
 from django_prod_shop.products.models import Product
-from django_prod_shop.orders.models import Order, OrderItem, StatusChoices as OrderStatusChoices
+from django_prod_shop.orders.models import Order, StatusChoices as OrderStatusChoices
 from django_prod_shop.payment.models import Payment, StatusChoices as PaymentStatusChoices
 
 

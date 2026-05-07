@@ -1,3 +1,6 @@
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
+from drf_spectacular.types import OpenApiTypes
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -42,6 +45,55 @@ class CartViewSet(GenericViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=['cart'],
+        summary='Добавить товар в корзину',
+        description=(
+            'Добавляет активный товар в корзину по его slug. '
+            'Если товар уже есть в корзине, увеличивает его количество. '
+            'Количество должно быть не меньше 1. '
+            'Если товара недостаточно на складе или товар не найден, возвращает ошибку 400.'
+        ),
+        request=CartAddSerializer,
+        responses={
+            status.HTTP_200_OK: CartSerializer,
+            status.HTTP_400_BAD_REQUEST: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                name='Добавление товара в корзину',
+                value={
+                    'product_slug': 'iphone-22-pro',
+                    'quantity': 2,
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                name='Товар не найден',
+                value={
+                    'product_slug': ['Такого товара не существует'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Недостаточно товара',
+                value={
+                    'quantity': ['Недостаточно товара на складе'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Недостаточно товара при добавлении к существующей позиции',
+                value={
+                    'quantity': 'Недостаточно товара на складе. Доступно: 3',
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+        ],
+    )
     @action(detail=False, methods=['post'], url_path='items', url_name='add-to-cart')
     def add_to_cart(self, request):
         cart = self.get_cart()
@@ -80,6 +132,62 @@ class CartViewSet(GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
     
+    @extend_schema(
+        tags=['cart'],
+        summary='Обновить количество товара в корзине',
+        description=(
+            'Обновляет количество товара в корзине по его item_id. '
+            'Если quantity = 0, позиция удаляется из корзины. '
+            'Если указанное количество больше доступного остатка товара, возвращает ошибку 400.'
+        ),
+        parameters=[
+            OpenApiParameter(
+                name='item_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='ID товара в корзине',
+                required=True,
+            ),
+        ],
+        request=CartUpdateSerializer,
+        responses={
+            status.HTTP_200_OK: CartSerializer,
+            status.HTTP_400_BAD_REQUEST: OpenApiTypes.OBJECT,
+            status.HTTP_404_NOT_FOUND: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                name='Обновление количества',
+                value={
+                    'quantity': 3,
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                name='Удаление товара через quantity = 0',
+                value={
+                    'quantity': 0,
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                name='Недостаточно товара',
+                value={
+                    'quantity': 'Недостаточно товара на складе. Доступно: 2',
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Товар в корзине не найден',
+                value={
+                    'detail': 'Not found.',
+                },
+                response_only=True,
+                status_codes=['404'],
+            ),
+        ],
+    )
     @action(detail=False, methods=['patch'], url_path=r'items/(?P<item_id>\d+)/update', url_name='update-cart-item')
     def update_cart_item(self, request, item_id=None):
         cart = self.get_cart()
@@ -108,6 +216,38 @@ class CartViewSet(GenericViewSet):
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=['cart'],
+        summary='Удалить товар из корзины',
+        description=(
+            'Удаляет товар из корзины по его item_id. '
+            'Если товар в корзине не найден, возвращает ошибку 404.'
+        ),
+        parameters=[
+            OpenApiParameter(
+                name='item_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='ID товара в корзине',
+                required=True,
+            ),
+        ],
+        request=None,
+        responses={
+            status.HTTP_200_OK: CartSerializer,
+            status.HTTP_404_NOT_FOUND: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                name='Товар в корзине не найден',
+                value={
+                    'detail': 'Not found.',
+                },
+                response_only=True,
+                status_codes=['404'],
+            ),
+        ],
+    )
     @action(detail=False, methods=['delete'], url_path=r'items/(?P<item_id>\d+)/remove', url_name='remove-cart-item')
     def remove_cart_item(self, request, item_id=None):
         cart = self.get_cart()
@@ -116,13 +256,80 @@ class CartViewSet(GenericViewSet):
 
         cart = self.get_cart()
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
-
+    
+    @extend_schema(
+        tags=['cart'],
+        summary='Очистить корзину',
+        description=(
+            'Очищает корзину.'
+        ),
+        request=None,
+        responses={
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(
+                description='Корзина успешно очищена. Тело ответа отсутствует.'
+            ),
+        },
+    )
     @action(detail=False, methods=['delete'], url_path='clear', url_name='clear-cart')
     def clear_cart(self, request):
         cart = self.get_cart()
         cart.cart_items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    @extend_schema(
+        tags=['cart'],
+        summary='Применить купон к корзине',
+        description=(
+            'Применяет активный купон к корзине. '
+            'Если купон неактивен или не существует, возвращает ошибку 400.'
+        ),
+        request=ApplyCouponSerializer,
+        responses={
+            status.HTTP_200_OK: CartSerializer,
+            status.HTTP_400_BAD_REQUEST: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                name='Применение купона',
+                value={
+                    'code': 'ultra-test-coupon',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                name='Купона не существует',
+                value={
+                    'code': ['Такого купона не существует'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Купон неактивен',
+                value={
+                    'code': ['Данный купон неактивен'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Срок действия купона ещё не начался',
+                value={
+                    'code': ['Срок действия купона ещё не начался'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+            OpenApiExample(
+                name='Срок действия купона истёк',
+                value={
+                    'code': ['Срок действия купона истёк'],
+                },
+                response_only=True,
+                status_codes=['400'],
+            ),
+        ],
+    )
     @action(detail=False, methods=['post'], url_path='apply-coupon', url_name='apply-coupon')
     def apply_coupon(self, request):
         cart = self.get_cart()
@@ -136,6 +343,15 @@ class CartViewSet(GenericViewSet):
 
         return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=['cart'],
+        summary='Удалить примененный купон',
+        description='Удаляет примененный к корзине купон.',
+        request=None,
+        responses={
+            status.HTTP_200_OK: CartSerializer,
+        },
+    )
     @action(detail=False, methods=['delete'], url_path='remove-coupon', url_name='remove-coupon')
     def remove_coupon(self, request):
         cart = self.get_cart()

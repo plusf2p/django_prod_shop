@@ -1,3 +1,6 @@
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
+from drf_spectacular.types import OpenApiTypes
+
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +16,45 @@ from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
 from .serializers import OrderReadSerializer, OrderWriteSerializer
 
 
+@extend_schema(
+    tags=['orders'],
+    summary='Обновить статус заказа',
+    description=(
+        'Обновляет статус заказа по order_id. '
+        'Если статус невалиден, возвращает ошибку 400.'
+    ),
+    parameters=[
+        OpenApiParameter(
+            name='order_id',
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.PATH,
+            description='ID заказа',
+            required=True,
+        ),
+    ],
+    request=None,
+    responses={
+        status.HTTP_200_OK: OrderReadSerializer,
+        status.HTTP_400_BAD_REQUEST: OpenApiTypes.OBJECT,
+    },
+    examples=[
+        OpenApiExample(
+            name='Изменить статус заказа',
+            value={
+                'status': StatusChoices.PENDING,
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            name='Неверный статус',
+            value={
+                'status': 'Такого статуса не существует',
+            },
+            response_only=True,
+            status_codes=['400'],
+        ),
+    ]
+)
 @api_view(['POST'])
 @permission_classes([CanChangeOrders])
 def change_order_status_view(request, order_id):
