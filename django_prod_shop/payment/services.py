@@ -1,19 +1,21 @@
+from yookassa import Configuration, Payment as YooPayment
+from uuid import UUID
+
+from django.db import transaction, IntegrityError
 from django.conf import settings
 from django.urls import reverse
-from django.db import transaction, IntegrityError
 from django.db.models import F
 
-from rest_framework import status
 from rest_framework.response import Response
-
-from yookassa import Configuration, Payment as YooPayment
+from rest_framework.request import Request
+from rest_framework import status
 
 from django_prod_shop.products.models import Product
 from django_prod_shop.orders.models import Order, StatusChoices as OrderStatusChoices
 from django_prod_shop.payment.models import Payment, StatusChoices as PaymentStatusChoices
 
 
-def create_payment_service(request, order_id):
+def create_payment_service(request: Request, order_id: str) -> Response:
     Configuration.account_id = settings.YOOKASSA_SHOP_ID
     Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
 
@@ -54,8 +56,10 @@ def create_payment_service(request, order_id):
 
             amount = order.total_price_after_discount
 
-            items = []
-            for item in order.items.all():
+            items: list[dict[str, object]] = []
+            order_items = list(order.items.select_related('product').all())
+
+            for item in order_items:
                 items.append({
                     'description': item.product.title[:100],
                     'quantity': str(item.quantity),
@@ -66,6 +70,19 @@ def create_payment_service(request, order_id):
                     'vat_code': '1',
                 })
 
+            for item in order_items:
+                product = Product.objects.select_for_update().get(pk=item.product_id)
+
+                available_quantity = product.quantity - product.reserved_quantity
+
+                if item.quantity > available_quantity:
+                    return Response(
+                        {'error': 'Недостаточно товара на складе'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                product.reserved_quantity += item.quantity
+                product.save(update_fields=['reserved_quantity'])
+
             try:
                 yoo_payment = YooPayment.create({
                     'amount': {'value': str(amount), 'currency': 'RUB'},
@@ -75,15 +92,14 @@ def create_payment_service(request, order_id):
                         'customer': {'email': email},
                         'items': items,
                     },
+                    'metadata': {
+                        'order_id': str(order.order_id),
+                    },
                     'description': f'Заказ #{order_id}',
                 })
             except Exception as e:
+                transaction.set_rollback(True)
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-            for item in order.items.all():
-                Product.objects.filter(pk=item.product_id).update(
-                    reserved_quantity=F('reserved_quantity') + item.quantity
-                )
 
             payment = Payment.objects.create(
                 order=order,
@@ -107,11 +123,14 @@ def create_payment_service(request, order_id):
     }, status=status.HTTP_201_CREATED)
 
 
-def confirm_payment(order_id, yk_id):
+def confirm_payment(order_id: UUID, yk_id: str) -> None:
     with transaction.atomic():
         order = Order.objects.select_for_update().get(order_id=order_id)
 
-        payment = Payment.objects.filter(order=order).first()
+        payment = Payment.objects.select_for_update().filter(
+            order=order, payment_id=yk_id,
+        ).first()
+
         if payment is None:
             return
 
@@ -132,11 +151,14 @@ def confirm_payment(order_id, yk_id):
         payment.save(update_fields=['status'])
 
 
-def cancel_payment(order_id, yk_id):
+def cancel_payment(order_id: UUID, yk_id: str) -> None:
     with transaction.atomic():
         order = Order.objects.select_for_update().get(order_id=order_id)
 
-        payment = Payment.objects.filter(order=order).first()
+        payment = Payment.objects.select_for_update().filter(
+            order=order, payment_id=yk_id,
+        ).first()
+
         if payment is None:
             return
 
@@ -147,10 +169,10 @@ def cancel_payment(order_id, yk_id):
         order.yookassa_id = yk_id
         order.save(update_fields=['status', 'yookassa_id'])
 
-        for item in order.items.all():
-            Product.objects.filter(pk=item.product_id).update(
-                reserved_quantity=F('reserved_quantity') - item.quantity
-            )
+        for item in order.items.select_related('product').all():
+            product = Product.objects.select_for_update().get(pk=item.product_id)
+            product.reserved_quantity = max(product.reserved_quantity - item.quantity, 0)
+            product.save(update_fields=['reserved_quantity'])
 
         payment.status = PaymentStatusChoices.CANCELLED
         payment.save(update_fields=['status'])

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from django_prod_shop.orders.api.serializers import OrderReadSerializer
-from django_prod_shop.payment.models import Payment, StatusChoices
+from django_prod_shop.payment.models import Payment
 
 
 class PaymentSerializer(serializers.ModelSerializer):

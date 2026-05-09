@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import Any
+
 from rest_framework import serializers
 
 from django.db import transaction
@@ -16,7 +19,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['product_title', 'product_slug', 'price', 'quantity', 'cost']
 
-    def get_cost(self, obj):
+    def get_cost(self, obj: OrderItem) -> Decimal:
         return obj.cost
 
 
@@ -37,13 +40,13 @@ class OrderReadSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
     
-    def get_total_price_before_discount(self, obj):
+    def get_total_price_before_discount(self, obj: Order) -> Decimal:
         return obj.total_price_before_discount
     
-    def get_discount_price(self, obj):
+    def get_discount_price(self, obj: Order) -> Decimal:
         return obj.discount_price
     
-    def get_total_price_after_discount(self, obj):
+    def get_total_price_after_discount(self, obj: Order) -> Decimal:
         return obj.total_price_after_discount
 
 
@@ -52,8 +55,8 @@ class OrderWriteSerializer(serializers.ModelSerializer):
         model = Order
         fields = ['full_name', 'phone', 'address', 'city']
 
-    def create(self, validated_data):
-        order =  create_order(user=self.context['request'].user, validated_data=validated_data)
+    def create(self, validated_data: dict[str, Any]) -> Order:
+        order = create_order(user=self.context['request'].user, validated_data=validated_data)
         transaction.on_commit(lambda: send_order_email.delay(str(order.order_id)))
 
         return order

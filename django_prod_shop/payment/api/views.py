@@ -1,18 +1,22 @@
+from typing import Any
+
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from django.db.models import QuerySet
 from django.urls import reverse
 
-from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
-from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
+from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
+from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
+from rest_framework.request import Request
 from rest_framework import status
 
+from django_prod_shop.payment.services import create_payment_service
 from django_prod_shop.payment.permissions import CanChangePayment
 from django_prod_shop.payment.models import Payment
-from django_prod_shop.payment.services import create_payment_service
 from .serializers import PaymentSerializer
 
 
@@ -21,7 +25,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     serializer_class = PaymentSerializer
     lookup_field = 'payment_id'
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Payment]:
         qs = super().get_queryset()
 
         if self.request.user.has_perm('payment.manage_payments'):
@@ -29,7 +33,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         
         return qs.filter(order__user=self.request.user)
 
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.action in ['create_payment', 'retrieve']:
             permission_classes = [IsAuthenticated]
         else:
@@ -37,10 +41,10 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         
         return [permission() for permission in permission_classes]
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request, *args: Any, **kwargs: Any) -> Response:
         return super().list(request, *args, **kwargs)
     
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request, *args: Any, **kwargs: Any) -> Response:
         return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
@@ -128,7 +132,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
         ]
     )
     @action(detail=False, methods=['post'], url_path=r'create/(?P<order_id>[^/.]+)', url_name='create')
-    def create_payment(self, request, order_id=None):
+    def create_payment(self, request: Request, order_id: str) -> Response:
         return create_payment_service(request, order_id)
 
 
@@ -155,7 +159,7 @@ class PaymentViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @authentication_classes([])
-def payment_completed(request):
+def payment_completed(request: Request) -> Response:
     return Response({
         'payment_status': 'completed', 
         'redirect_url': request.build_absolute_uri(reverse('orders:orders-list')),

@@ -28,7 +28,7 @@ class Order(models.Model):
     address = models.CharField(max_length=250, verbose_name='Адрес')
     city = models.CharField(max_length=100, verbose_name='Город')
     coupon = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Купон')
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Общая стоимость')
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), verbose_name='Общая стоимость')
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING, verbose_name='Статус'
     )
@@ -46,22 +46,22 @@ class Order(models.Model):
             ('manage_orders', 'Может изменять заказы'),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Заказ: {self.user}. ID: {self.pk}'
     
     @property
-    def total_price_before_discount(self):
+    def total_price_before_discount(self) -> Decimal:
         return sum((item.cost for item in self.items.all()), Decimal('0.00'))
 
     @property
-    def discount_price(self):
+    def discount_price(self) -> Decimal:
         total_cost = self.total_price_before_discount
         if self.coupon_id:
             return total_cost * (Decimal(self.coupon.discount) / Decimal('100'))
         return Decimal('0.00')
 
     @property
-    def total_price_after_discount(self):
+    def total_price_after_discount(self) -> Decimal:
         return self.total_price_before_discount - self.discount_price
 
 
@@ -83,9 +83,9 @@ class OrderItem(models.Model):
         ]
         
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.order} | {self.product} x ({self.quantity})'
 
     @property
-    def cost(self):
+    def cost(self) -> Decimal:
         return self.price * self.quantity

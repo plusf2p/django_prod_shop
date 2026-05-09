@@ -33,7 +33,7 @@ class Payment(models.Model):
             models.Index(fields=['created_at']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.order and self.order.order_id:
             return f'Заказ ({self.order.order_id}) - {self.amount} Р ({self.status})'
         return f'Платеж без заказа - {self.amount} Р ({self.status})'

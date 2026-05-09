@@ -12,7 +12,7 @@ logger = get_task_logger(__name__)
 
 
 @shared_task
-def send_order_email(order_id):
+def send_order_email(order_id: str) -> None:
     try:
         order = Order.objects.select_related('coupon').select_related('user').prefetch_related(
             Prefetch('items', queryset=OrderItem.objects.select_related('product'))
