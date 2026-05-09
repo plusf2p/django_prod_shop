@@ -1,16 +1,18 @@
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
+from typing import Any
 
 from rest_framework import status
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 
 from django.db import transaction
-from django.db.models import Prefetch
-from django.shortcuts import get_object_or_404
 from django.core.cache import cache
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch, QuerySet
 
 from django_prod_shop.products.models import Product
 from django_prod_shop.cart.api.serializers import (CartSerializer, CartAddSerializer, 
@@ -23,16 +25,16 @@ class CartViewSet(GenericViewSet):
     serializer_class = CartSerializer
     permission_classes = [AllowAny]
 
-    def get_cart_queryset(self):
+    def get_cart_queryset(self) -> QuerySet[Cart]:
         return Cart.objects.select_related('user').select_related('coupon').prefetch_related(
             Prefetch('cart_items', queryset=CartItem.objects.select_related('product'))
         )
 
-    def get_cart(self):
+    def get_cart(self) -> Cart:
         cart = get_or_create_cart(self.request)
         return self.get_cart_queryset().get(pk=cart.pk)
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         cache_key = get_cart_cache_key(request)
         cached_cart = cache.get(cache_key)
 
@@ -95,7 +97,7 @@ class CartViewSet(GenericViewSet):
         ],
     )
     @action(detail=False, methods=['post'], url_path='items', url_name='add-to-cart')
-    def add_to_cart(self, request):
+    def add_to_cart(self, request: Request) -> Response:
         cart = self.get_cart()
         serializer = CartAddSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -189,7 +191,7 @@ class CartViewSet(GenericViewSet):
         ],
     )
     @action(detail=False, methods=['patch'], url_path=r'items/(?P<item_id>\d+)/update', url_name='update-cart-item')
-    def update_cart_item(self, request, item_id=None):
+    def update_cart_item(self, request: Request, item_id: int | None = None) -> Response:
         cart = self.get_cart()
         item = get_object_or_404(CartItem, cart=cart, id=item_id)
 
@@ -249,7 +251,7 @@ class CartViewSet(GenericViewSet):
         ],
     )
     @action(detail=False, methods=['delete'], url_path=r'items/(?P<item_id>\d+)/remove', url_name='remove-cart-item')
-    def remove_cart_item(self, request, item_id=None):
+    def remove_cart_item(self, request: Request, item_id: int | None = None) -> Response:
         cart = self.get_cart()
         item = get_object_or_404(CartItem, cart=cart, id=item_id)
         item.delete()
@@ -271,7 +273,7 @@ class CartViewSet(GenericViewSet):
         },
     )
     @action(detail=False, methods=['delete'], url_path='clear', url_name='clear-cart')
-    def clear_cart(self, request):
+    def clear_cart(self, request: Request) -> Response:
         cart = self.get_cart()
         cart.cart_items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -331,7 +333,7 @@ class CartViewSet(GenericViewSet):
         ],
     )
     @action(detail=False, methods=['post'], url_path='apply-coupon', url_name='apply-coupon')
-    def apply_coupon(self, request):
+    def apply_coupon(self, request: Request) -> Response:
         cart = self.get_cart()
 
         serializer = ApplyCouponSerializer(data=request.data)
@@ -353,9 +355,9 @@ class CartViewSet(GenericViewSet):
         },
     )
     @action(detail=False, methods=['delete'], url_path='remove-coupon', url_name='remove-coupon')
-    def remove_coupon(self, request):
+    def remove_coupon(self, request: Request) -> Response:
         cart = self.get_cart()
         cart.coupon = None
         cart.save(update_fields=['coupon', 'updated_at'])
 
-        return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK)
+        return Response(self.get_serializer(cart).data, status=status.HTTP_200_OK) 

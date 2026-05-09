@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -10,13 +12,13 @@ class CouponSerializer(serializers.ModelSerializer):
         model = Coupon
         fields = ['id', 'code', 'discount', 'valid_from', 'valid_to', 'is_active']
 
-    def validate_discount(self, value):
+    def validate_discount(self, value: int) -> int:
         if not (0 <= value <= 100):
             raise serializers.ValidationError('Значение скидки должно быть от 0 до 100')
         
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         now = timezone.now().date()
 
         instance = getattr(self, 'instance', None)

@@ -21,14 +21,14 @@ class Cart(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
 
     @property
-    def total_price(self):
+    def total_price(self) -> Decimal:
         total = sum((item.total_price for item in self.cart_items.all()), Decimal('0'))
         if self.coupon_id:
             total = total - total * (Decimal(str(self.coupon.discount)) / Decimal('100'))
         return total
 
     @property
-    def total_quantity(self):
+    def total_quantity(self) -> int:
         return sum(item.quantity for item in self.cart_items.all())
 
     class Meta:
@@ -38,7 +38,7 @@ class Cart(models.Model):
             models.Index(fields=['created_at']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.user:
             return f"Корзина ({self.pk}) : {self.user.username}"
         return f"Корзина ({self.pk}) : Аноним"
@@ -55,8 +55,8 @@ class CartItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
 
     @property
-    def total_price(self):
-        return self.product.price * self.quantity
+    def total_price(self) -> Decimal:
+        return Decimal(self.product.price * self.quantity)
 
     class Meta:
         verbose_name_plural = 'Товары в корзине'
@@ -66,5 +66,5 @@ class CartItem(models.Model):
             models.CheckConstraint(condition=models.Q(quantity__gt=0), name='quantity_gt_0'),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.product} ({self.quantity})'

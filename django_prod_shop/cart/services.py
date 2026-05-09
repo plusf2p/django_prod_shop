@@ -1,15 +1,19 @@
+from rest_framework.request import Request
+
 from django.db import transaction
+from django.contrib.auth.models import AbstractBaseUser
 
 from .models import Cart, CartItem
 
 
-def get_or_create_session_key(request):
+
+def get_or_create_session_key(request: Request) -> str | None:
     if not request.session.session_key:
         request.session.create()
     return request.session.session_key
 
 
-def get_or_create_cart(request):
+def get_or_create_cart(request: Request) -> Cart:
     user = request.user
     
     if user.is_authenticated:
@@ -21,7 +25,7 @@ def get_or_create_cart(request):
     return cart
 
 
-def get_cart_cache_key(request):
+def get_cart_cache_key(request: Request) -> str:
     if request.user.is_authenticated:
         return f'cart_list_user_{request.user.pk}'
     session_key = get_or_create_session_key(request)
@@ -29,7 +33,7 @@ def get_cart_cache_key(request):
 
 
 @transaction.atomic
-def merge_cart(request, user):
+def merge_cart(request: Request, user: AbstractBaseUser | None) -> None:
     if not user or not user.is_authenticated:
         return
 
@@ -57,13 +61,13 @@ def merge_cart(request, user):
     anon_items = anon_cart.cart_items.select_related('product').select_for_update(of=('self', 'product'))
 
     for item in anon_items:
-        available_quantity = max(0, item.product.quantity - item.product.reserver_quantity)
+        available_quantity = max(0, item.product.quantity - item.product.reserved_quantity)
         if available_quantity <= 0:
             continue
 
         cart_item, created = CartItem.objects.select_for_update().get_or_create(
             cart=user_cart,
-            product = item.product,
+            product=item.product,
             defaults={'quantity': min(item.quantity, available_quantity)},
         )
 

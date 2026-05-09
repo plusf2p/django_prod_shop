@@ -24,9 +24,9 @@ class Coupon(models.Model):
             models.Index(fields=['valid_from']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Купон {self.code}. Скидка {self.discount}%'
     
-    def clean(self):
+    def clean(self) -> None:
         if self.valid_to <= self.valid_from:
             raise ValidationError('Дата окончания должна быть позже даты начала')

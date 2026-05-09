@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -33,7 +35,7 @@ class CartAddSerializer(serializers.Serializer):
     product_slug = serializers.SlugField()
     quantity = serializers.IntegerField(min_value=1, default=1)
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         try:
             product = Product.objects.get(slug=attrs['product_slug'], is_active=True)
         except Product.DoesNotExist:
@@ -57,7 +59,7 @@ class CartUpdateSerializer(serializers.Serializer):
 class ApplyCouponSerializer(serializers.Serializer):
     code = serializers.CharField()
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         code = attrs['code']
         now = timezone.now().date()
 
