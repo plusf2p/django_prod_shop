@@ -1,6 +1,10 @@
+from decimal import Decimal
+from typing import Any
+
 from rest_framework import serializers
 
 from django.db.models import Count, Avg
+from django.core.files.uploadedfile import UploadedFile
 
 from django_prod_shop.reviews.api.serializers import ReviewSerializer
 from django_prod_shop.products.models import Category, Product
@@ -36,22 +40,25 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
-    def validate_image(self, value):
+    def validate_image(self, value: UploadedFile | None) -> UploadedFile | None:
+        if value is None:
+            return value
+
         if value.size > 10 * 1024 * 1024:
-            raise serializers.ValidationError({'image': 'Максимальный размер изображения - 10 МБ'})
+            raise serializers.ValidationError('Максимальный размер изображения - 10 МБ')
 
         if value.content_type not in ['image/jpeg', 'image/png', 'image/webp']:
-            raise serializers.ValidationError({'image': 'Допустимы только форматы: JPG, PNG, WEBP'})
+            raise serializers.ValidationError('Допустимы только форматы: JPG, PNG, WEBP')
 
         return value
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         price = attrs.get('price', getattr(self.instance, 'price', None))
     
         if price is None:
             raise serializers.ValidationError({'price': 'Укажите цену'})
 
-        if price < 0:
+        if price < Decimal('0'):
             raise serializers.ValidationError({'price': 'Цена не должна быть меньше 0'})
 
         quantity = attrs.get('quantity', getattr(self.instance, 'quantity', None))
@@ -104,7 +111,7 @@ class ProductDetailSerializer(ProductReadSerializer):
             'price', 'reviews', 'created_at', 'rating', 'reviews_count', 'similar_products',
         ]
     
-    def get_similar_products(self, obj):
+    def get_similar_products(self, obj: Product) -> Any:
         if obj.category is None:
             return []
 

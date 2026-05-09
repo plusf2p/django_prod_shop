@@ -1,15 +1,19 @@
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import BasePermission
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework import filters
 
 from django_filters import rest_framework as dj_filters
+from typing import Any
 
-from django.db.models import Prefetch, Avg, Count
 from django.db.models.functions import Round
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
+from django.db.models import Prefetch, Avg, Count, QuerySet
 
 from django_prod_shop.reviews.models import Review
 from django_prod_shop.products.models import Category, Product
@@ -32,7 +36,7 @@ class ProductViewSet(ModelViewSet):
     ordering = ['-created_at']
     lookup_field = 'slug'
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Product]:
         qs = super().get_queryset()
 
         if self.action == 'list':
@@ -47,7 +51,7 @@ class ProductViewSet(ModelViewSet):
         
         return qs
 
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [CanChangeProducts]
         else:
@@ -55,7 +59,9 @@ class ProductViewSet(ModelViewSet):
         
         return [permission() for permission in permission_classes]
 
-    def get_serializer_class(self):
+    def get_serializer_class(
+            self
+        ) -> type[ProductDetailSerializer] | type[ProductWriteSerializer] | type[ProductReadSerializer]:
         if self.action == 'retrieve':
             return ProductDetailSerializer
         elif self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -64,12 +70,12 @@ class ProductViewSet(ModelViewSet):
 
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='product_list'))
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().list(request, *args, **kwargs)
     
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='product_retrieve'))
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().retrieve(request, *args, **kwargs)
 
 
@@ -82,7 +88,7 @@ class CategoryViewSet(ModelViewSet):
     ordering = ['title']
     lookup_field = 'slug'
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Category]:
         qs = super().get_queryset()
 
         if self.action == 'retrieve':
@@ -100,7 +106,7 @@ class CategoryViewSet(ModelViewSet):
 
         return qs
 
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [CanChangeCategories]
         else:
@@ -108,7 +114,9 @@ class CategoryViewSet(ModelViewSet):
         
         return [permission() for permission in permission_classes]
 
-    def get_serializer_class(self):
+    def get_serializer_class(
+            self
+        ) -> type[CategoryListSerializer] | type[CategoryWriteSerializer] | type[CategoryDetailSerializer]:
         if self.action == 'list':
             return CategoryListSerializer
         elif self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -117,10 +125,10 @@ class CategoryViewSet(ModelViewSet):
 
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='category_list'))
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().list(request, *args, **kwargs)
 
     @method_decorator(vary_on_headers('Authorization'))
     @method_decorator(cache_page(60*60, key_prefix='category_retrieve'))
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return super().retrieve(request, *args, **kwargs)

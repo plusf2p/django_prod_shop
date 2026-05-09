@@ -12,7 +12,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_display_links = ['title']
     prepopulated_fields = {"slug": ["title"]}
 
-    def description_short(self, obj):
+    def description_short(self, obj: Product) -> str:
         if len(obj.description) > 50:
             return obj.description[:50] + '...'
         return obj.description[:50]
@@ -26,7 +26,7 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display_links = ['title']
     prepopulated_fields = {"slug": ["title"]}
 
-    def description_short(self, obj):
+    def description_short(self, obj: Category) -> str:
         if len(obj.description) > 50:
             return obj.description[:50] + '...'
         return obj.description[:50]

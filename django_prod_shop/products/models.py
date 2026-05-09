@@ -8,7 +8,7 @@ class Category(models.Model):
     slug = models.SlugField(unique=True, verbose_name='Слаг')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
     class Meta:
@@ -70,8 +70,8 @@ class Product(models.Model):
             ('manage_products', 'Может изменять товары'),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
-    def get_absolute_url(self):
+    def get_absolute_url(self) -> str:
         return reverse('shop_detail', kwargs={'slug': self.slug})
