@@ -1,3 +1,5 @@
+from typing import Any, Sequence
+
 from django.db import transaction
 from djoser.email import ActivationEmail, PasswordResetEmail
 
@@ -5,7 +7,7 @@ from django_prod_shop.users.tasks import send_email_task
 
 
 class CeleryActivationEmail(ActivationEmail):
-    def send(self, to, *args, **kwargs):
+    def send(self, to: Sequence[str], *args: Any, **kwargs: Any) -> int:
         self.render()
 
         transaction.on_commit(
@@ -20,7 +22,7 @@ class CeleryActivationEmail(ActivationEmail):
 
 
 class CeleryPasswordResetEmail(PasswordResetEmail):
-    def send(self, to, *args, **kwargs):
+    def send(self, to: Sequence[str], *args: Any, **kwargs: Any) -> int:
         self.render()
 
         transaction.on_commit(

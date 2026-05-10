@@ -1,5 +1,3 @@
-from django.urls import path
-
 from rest_framework.routers import DefaultRouter
 
 import django_prod_shop.users.api.views as api_views

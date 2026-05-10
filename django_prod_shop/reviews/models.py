@@ -23,12 +23,11 @@ class Review(models.Model):
         verbose_name_plural = 'Отзывы'
         ordering = ['-created_at']
         constraints = [
-            models.UniqueConstraint(fields=['product', 'user'], name='uniqe_rview'),
+            models.UniqueConstraint(fields=['product', 'user'], name='unique_rview'),
         ]
         permissions = [
             ('manage_reviews', 'Может изменять отзывы'),
         ]
-        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['created_at']),
         ]

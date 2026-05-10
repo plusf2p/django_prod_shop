@@ -409,8 +409,8 @@ DJOSER = {
     'ACTIVATION_URL': 'auth/users/activate/{uid}/{token}/',
 
     'EMAIL': {
-        'activation': 'users.emails.CeleryActivationEmail',
-        'password_reset': 'users.emails.CeleryPasswordResetEmail',
+        'activation': 'django_prod_shop.users.emails.CeleryActivationEmail',
+        'password_reset': 'django_prod_shop.users.emails.CeleryPasswordResetEmail',
     },
 
     'EMAIL_FRONTEND_PROTOCOL': 'http',

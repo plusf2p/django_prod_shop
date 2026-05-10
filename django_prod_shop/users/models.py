@@ -39,7 +39,7 @@ class User(AbstractUser):
 
 
 class Profile(Model):
-    user = OneToOneField(User, on_delete=CASCADE, default='', verbose_name='Пользователь', related_name='profile')
+    user = OneToOneField(User, on_delete=CASCADE, verbose_name='Пользователь', related_name='profile')
     full_name = CharField(max_length=300, default='', verbose_name='Имя')
     phone = CharField(max_length=40, default='', verbose_name='Телефон')
     city = CharField(max_length=100, default='', verbose_name='Город')
@@ -52,5 +52,5 @@ class Profile(Model):
             ('manage_profiles', 'Может изменять профили'),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.full_name} - ({self.user})'

@@ -8,7 +8,7 @@ class ReviewAdmin(admin.ModelAdmin):
     list_display = ['product', 'user', 'comment_short', 'rating']
     list_display_links = ['product']
 
-    def comment_short(self, obj):
+    def comment_short(self, obj: Review) -> str:
         if len(obj.comment) > 50:
             return obj.comment[:50] + '...'
         return obj.comment[:50]

@@ -1,3 +1,5 @@
+from typing import Any
+
 from rest_framework import serializers
 
 from django_prod_shop.orders.models import OrderItem, StatusChoices
@@ -31,22 +33,25 @@ class ReviewSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context['request']
         user = request.user
 
         instance = getattr(self, 'instance', None)
         product = attrs.get('product', getattr(instance, 'product', None))
 
+        if product is None:
+            raise serializers.ValidationError({'product': 'Вы не указали товар'})
+
         if instance is None:
             if Review.objects.filter(product=product, user=user).exists():
-                raise serializers.ValidationError({'product': 'Вы уже оставляли отзыв на этот товаром'})
+                raise serializers.ValidationError({'product': 'Вы уже оставляли отзыв на этот товар'})
 
-        check_order_exists = OrderItem.objects.filter(
-            order__user=user, product=product, order__status=StatusChoices.DELIVERED
-        ).exists()
+            check_order_exists = OrderItem.objects.filter(
+                order__user=user, product=product, order__status=StatusChoices.DELIVERED,
+            ).exists()
 
-        if not check_order_exists and not user.is_staff:
-            raise serializers.ValidationError({'product': 'Вам не доставляли этот товар'})
+            if not check_order_exists and not user.has_perm('reviews.manage_reviews'):
+                raise serializers.ValidationError({'product': 'Вам не доставляли этот товар'})
 
         return attrs
