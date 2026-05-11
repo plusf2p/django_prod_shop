@@ -1,21 +1,24 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from datetime import timedelta
+from uuid import uuid4, UUID
 from decimal import Decimal
-from uuid import uuid4
+from typing import Any
 
-from django.core.cache import cache
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.utils import timezone
 from django.urls import reverse
 
 from rest_framework.test import APITestCase, APIClient
+from rest_framework.response import Response
 from rest_framework import status
 
 from django_prod_shop.orders.models import Order, OrderItem, StatusChoices
-from django_prod_shop.coupons.models import Coupon
-from django_prod_shop.cart.models import Cart, CartItem
 from django_prod_shop.products.models import Category, Product
+from django_prod_shop.cart.models import Cart, CartItem
+from django_prod_shop.coupons.models import Coupon
 
 
 user_model = get_user_model()
@@ -41,6 +44,20 @@ class OrdersAPITest(APITestCase):
             password=cls.normal_user_data['password'],
             is_active=True,
         )
+
+        # Создание менеджера
+        cls.manager_user_data = {
+            'email': 'test_manager1@mail.ru',
+            'password': 'test_manager1_password!',
+        }
+        cls.manager_user = user_model.objects.create_user(
+            email=cls.manager_user_data['email'], 
+            password=cls.manager_user_data['password'],
+            is_active=True,
+        )
+        # Назначение роли менеджера менеджеру
+        group, _ = Group.objects.get_or_create(name='Manager')
+        cls.manager_user.groups.add(group)
 
         # Создание пользователя для неправильного заказа
         cls.invalid_order_user_data = {
@@ -208,44 +225,47 @@ class OrdersAPITest(APITestCase):
         cls.order_admin.total_price = cls.order_admin.total_price_after_discount
         cls.order_admin.save(update_fields=['total_price'])
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.clear()
         self.admin_client = APIClient()
         self.normal_client = APIClient()
+        self.manager_client = APIClient()
         self.anon_client = APIClient()
         self.invalid_order_client = APIClient()
 
         # Авторизация админа, и двух обычных пользователей
         self.normal_client.force_authenticate(user=self.normal_user)
+        self.manager_client.force_authenticate(user=self.manager_user)
         self.invalid_order_client.force_authenticate(user=self.invalid_order_user)
         self.admin_client.force_authenticate(user=self.admin_user)
     
-    def get_order_detail_url_with_order_id(self, order_id):
+    def get_order_detail_url_with_order_id(self, order_id: UUID) -> str:
         return reverse('orders:orders-detail', kwargs={'order_id': str(order_id)})
 
-    def get_order_status_change_url_with_order_id(self, order_id):
+    def get_order_status_change_url_with_order_id(self, order_id: UUID) -> str:
         return reverse('orders:change-order-status', kwargs={'order_id': str(order_id)})
 
-    def check_order_in_order_data(self, order_data, order):
+    def check_order_in_order_data(self, order_data: dict[str, Any], order: Order) -> None:
         self.assertEqual(order_data['user'], order.user.email)
         self.assertEqual(order_data['phone'], order.phone)
         self.assertEqual(order_data['address'], order.address)
         self.assertEqual(order_data['city'], order.city)
-        self.assertEqual(order_data['coupon'], order.coupon.code)
+        expected_coupon = order.coupon.code if order.coupon else None
+        self.assertEqual(order_data['coupon'], expected_coupon)
         self.assertEqual(Decimal(order_data['total_price']), Decimal(order.total_price))
         self.assertEqual(order_data['status'], order.status)
         self.assertEqual(Decimal(order_data['total_price_before_discount']), Decimal(order.total_price_before_discount))
         self.assertEqual(Decimal(order_data['discount_price']), Decimal(order.discount_price))
         self.assertEqual(Decimal(order_data['total_price_after_discount']), Decimal(order.total_price_after_discount))
 
-    def check_contains_order_in_order_response(self, order_response, order):
+    def check_contains_order_in_order_response(self, order_response: Response, order: Order) -> bool:
         for order_item in order_response.data:
             if order_item['order_id'] == str(order.order_id):
                 self.check_order_in_order_data(order_data=order_item, order=order)
                 return True
         return False
 
-    def create_order_data(self, **new_data):
+    def create_order_data(self, **new_data: Any) -> dict[str, Any]:
         data = {
             'full_name': 'Ivan Petrov',
             'phone': '+78005553535',
@@ -255,12 +275,12 @@ class OrdersAPITest(APITestCase):
         data.update(new_data)
         return data
 
-    def test_anon_user_cannot_get_orders_list(self):
+    def test_anon_user_cannot_get_orders_list(self) -> None:
         # Неправильное получение списка заказов и проверка
         invalid_anon_response = self.anon_client.get(self.orders_list_url)
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_normal_user_can_get_his_own_orders_in_orders_list(self):
+    def test_normal_user_can_get_his_own_orders_in_orders_list(self) -> None:
         # Получение списка заказов и проверка
         list_normal_response = self.normal_client.get(self.orders_list_url)
         self.assertEqual(list_normal_response.status_code, status.HTTP_200_OK)
@@ -272,8 +292,11 @@ class OrdersAPITest(APITestCase):
                 order=self.order_normal,
             )
         )
+
+        # Проверка количества заказов
+        self.assertEqual(len(list_normal_response.data), 1)
     
-    def test_normal_user_cannot_get_other_orders_in_orders_list(self):
+    def test_normal_user_cannot_get_other_orders_in_orders_list(self) -> None:
         # Получение списка заказов и проверка
         list_normal_response = self.normal_client.get(self.orders_list_url)
         self.assertEqual(list_normal_response.status_code, status.HTTP_200_OK)
@@ -286,7 +309,7 @@ class OrdersAPITest(APITestCase):
             )
         )
 
-    def test_admin_user_can_get_all_orders(self):
+    def test_admin_user_can_get_all_orders(self) -> None:
         # Получение списка заказов и проверка
         admin_normal_response = self.admin_client.get(self.orders_list_url)
         self.assertEqual(admin_normal_response.status_code, status.HTTP_200_OK)
@@ -305,14 +328,36 @@ class OrdersAPITest(APITestCase):
             )
         )
 
-    def test_anon_user_cannot_get_order_detail(self):
+        # Проверка количества заказов
+        self.assertEqual(len(admin_normal_response.data), 2)
+    
+    def test_manager_user_can_get_all_orders(self) -> None:
+        # Получение списка заказов и проверка
+        manager_normal_response = self.manager_client.get(self.orders_list_url)
+        self.assertEqual(manager_normal_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие всехх заказов в списке
+        self.assertTrue(
+            self.check_contains_order_in_order_response(
+                order_response=manager_normal_response,
+                order=self.order_normal,
+            )
+        )
+        self.assertTrue(
+            self.check_contains_order_in_order_response(
+                order_response=manager_normal_response,
+                order=self.order_admin,
+            )
+        )
+
+    def test_anon_user_cannot_get_order_detail(self) -> None:
         # Неправильное получение заказа и проверка
         invalid_anon_response = self.anon_client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
         )
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_normal_user_can_get_his_own_order_detail(self):
+    def test_normal_user_can_get_his_own_order_detail(self) -> None:
         # Получение своего заказа и проверка
         detail_normal_response = self.normal_client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
@@ -324,14 +369,14 @@ class OrdersAPITest(APITestCase):
             order_data=detail_normal_response.data, order=self.order_normal,
         )
     
-    def test_normal_user_cannot_get_other_order_detail(self):
+    def test_normal_user_cannot_get_other_order_detail(self) -> None:
         # Неправильное получение чужого заказа и проверка
         invalid_normal_response = self.normal_client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_admin.order_id),
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_admin_user_can_get_other_order_detail(self):
+    def test_admin_user_can_get_other_order_detail(self) -> None:
         # Получение своего заказа и проверка
         detail_admin_response = self.admin_client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
@@ -342,8 +387,20 @@ class OrdersAPITest(APITestCase):
         self.check_order_in_order_data(
             order_data=detail_admin_response.data, order=self.order_normal,
         )
+    
+    def test_manager_user_can_get_other_order_detail(self) -> None:
+        # Получение своего заказа и проверка
+        detail_manager_response = self.manager_client.get(
+            self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
+        )
+        self.assertEqual(detail_manager_response.status_code, status.HTTP_200_OK)
 
-    def test_anon_user_cannot_create_order(self):
+        # Проверка на совпадение заказа из ответа
+        self.check_order_in_order_data(
+            order_data=detail_manager_response.data, order=self.order_normal,
+        )
+
+    def test_anon_user_cannot_create_order(self) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -354,7 +411,7 @@ class OrdersAPITest(APITestCase):
         self.assertEqual(invalid_anon_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @patch('django_prod_shop.orders.api.serializers.send_order_email.delay')
-    def test_normal_user_can_create_order(self, mocked_delay):
+    def test_normal_user_can_create_order(self, mocked_delay: MagicMock) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -362,10 +419,11 @@ class OrdersAPITest(APITestCase):
         cart_total_price = self.cart_normal.total_price
 
         # Создание заказа из корзины без отправления письма и проверка
-        with self.captureOnCommitCallbacks(execute=True):
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
             create_normal_response = self.normal_client.post(
                 self.orders_list_url, data=order_data,
             )
+            self.assertEqual(len(callbacks), 1)
         self.assertEqual(create_normal_response.status_code, status.HTTP_201_CREATED)
 
         # Проверка на совпадение созданного заказа
@@ -394,7 +452,7 @@ class OrdersAPITest(APITestCase):
         mocked_delay.assert_called_once_with(str(order.order_id))
         self.assertFalse(Cart.objects.filter(user=self.normal_user).exists())
         
-    def test_cannot_create_order_without_cart(self):
+    def test_cannot_create_order_without_cart(self) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -406,7 +464,7 @@ class OrdersAPITest(APITestCase):
             invalid_order_user_response.status_code, status.HTTP_400_BAD_REQUEST
         )
     
-    def test_cannot_create_order_with_empty_cart(self):
+    def test_cannot_create_order_with_empty_cart(self) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -421,7 +479,7 @@ class OrdersAPITest(APITestCase):
             invalid_order_user_response.status_code, status.HTTP_400_BAD_REQUEST
         )
     
-    def test_cannot_create_order_with_inactive_product(self):
+    def test_cannot_create_order_with_inactive_product(self) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -439,7 +497,7 @@ class OrdersAPITest(APITestCase):
             invalid_order_user_response.status_code, status.HTTP_400_BAD_REQUEST
         )
     
-    def test_cannot_create_order_with_over_product_quantity(self):
+    def test_cannot_create_order_with_over_product_quantity(self) -> None:
         # Данные для создания заказа
         order_data = self.create_order_data()
 
@@ -458,7 +516,7 @@ class OrdersAPITest(APITestCase):
             invalid_order_user_response.status_code, status.HTTP_400_BAD_REQUEST
         )
 
-    def test_items_contains_in_order_response(self):
+    def test_items_contains_in_order_response(self) -> None:
         # Получение своего заказа и проверка
         detail_admin_response = self.admin_client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_admin.order_id),
@@ -469,8 +527,19 @@ class OrdersAPITest(APITestCase):
         product_slugs = {item['product_slug'] for item in detail_admin_response.data['items']}
         for order_item in self.order_admin.items.all():
             self.assertIn(order_item.product.slug, product_slugs)
+        
+        # Проверка вложенных данных
+        for item_data in detail_admin_response.data['items']:
+            order_item = self.order_admin.items.get(
+                product__slug=item_data['product_slug']
+            )
 
-    def test_anon_user_cannot_change_order_status(self):
+            self.assertEqual(item_data['product_title'], order_item.product.title)
+            self.assertEqual(Decimal(item_data['price']), order_item.price)
+            self.assertEqual(item_data['quantity'], order_item.quantity)
+            self.assertEqual(Decimal(item_data['cost']), order_item.cost)
+
+    def test_anon_user_cannot_change_order_status(self) -> None:
         # Неправильная смена статуса и проверка
         invalid_anon_response = self.anon_client.post(
             self.get_order_status_change_url_with_order_id(
@@ -485,7 +554,7 @@ class OrdersAPITest(APITestCase):
             order_id=self.order_normal.order_id, status='delivered',
         ).exists())
 
-    def test_normal_user_cannot_change_order_status(self):
+    def test_normal_user_cannot_change_order_status(self) -> None:
         # Неправильная смена статуса и проверка
         invalid_normal_response = self.normal_client.post(
             self.get_order_status_change_url_with_order_id(
@@ -498,7 +567,17 @@ class OrdersAPITest(APITestCase):
         self.order_normal.refresh_from_db()
         self.assertNotEqual(self.order_normal.status, 'delivered')
 
-    def test_admin_user_can_change_any_order_status(self):
+    def test_admin_user_cannot_set_invalid_status(self) -> None:
+        # Неправильная смена статуса и проверка
+        invalid_admin_response = self.admin_client.post(
+            self.get_order_status_change_url_with_order_id(
+                order_id=self.order_normal.order_id, 
+            ), data={'status': 'invalid_status'},
+        )
+        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_admin_response.data['status'], 'Такого статуса не существует')
+
+    def test_admin_user_can_change_any_order_status(self) -> None:
         # Смена статуса и проверка
         change_status_admin_response = self.admin_client.post(
             self.get_order_status_change_url_with_order_id(
@@ -511,13 +590,17 @@ class OrdersAPITest(APITestCase):
         # Проверка на обновленность статуса
         self.order_normal.refresh_from_db()
         self.assertEqual(self.order_normal.status, 'delivered')
-
-    def test_admin_user_cannot_set_invalid_status(self):
-        # Неправильная смена статуса и проверка
-        invalid_admin_response = self.admin_client.post(
+    
+    def test_manager_user_can_change_any_order_status(self) -> None:
+        # Смена статуса и проверка
+        change_status_manager_response = self.manager_client.post(
             self.get_order_status_change_url_with_order_id(
                 order_id=self.order_normal.order_id, 
-            ), data={'status': 'invalid_status'},
+            ), data={'status': 'delivered'},
         )
-        self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(invalid_admin_response.data['status'], 'Такого статуса не существует')
+        self.assertEqual(change_status_manager_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(change_status_manager_response.data['status'], 'delivered')
+
+        # Проверка на обновленность статуса
+        self.order_normal.refresh_from_db()
+        self.assertEqual(self.order_normal.status, 'delivered')

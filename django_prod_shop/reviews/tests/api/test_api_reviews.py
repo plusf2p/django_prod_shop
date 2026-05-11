@@ -376,7 +376,7 @@ class ReviewAPITest(APITestCase):
             self.reviews_list_url, data=review_data,
         )
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(invalid_admin_response.data['product'][0], 'Вы уже оставляли отзыв на этот товаром')
+        self.assertEqual(invalid_admin_response.data['product'][0], 'Вы уже оставляли отзыв на этот товар')
 
     def test_normal_user_cannot_create_review_if_product_is_not_delivered(self):
         # Создание недоставленного заказа
