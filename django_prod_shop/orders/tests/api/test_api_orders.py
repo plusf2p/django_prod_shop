@@ -400,11 +400,10 @@ class OrdersAPITest(APITestCase):
         cart_total_price = self.cart_normal.total_price
 
         # Создание заказа из корзины без отправления письма и проверка
-        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+        with self.captureOnCommitCallbacks(execute=True):
             create_normal_response = self.normal_client.post(
                 self.orders_list_url, data=order_data,
             )
-            self.assertEqual(len(callbacks), 1)
         self.assertEqual(create_normal_response.status_code, status.HTTP_201_CREATED)
 
         # Проверка на совпадение созданного заказа

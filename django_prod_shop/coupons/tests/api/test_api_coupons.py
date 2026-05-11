@@ -839,7 +839,7 @@ class CouponAPITest(APITestCase):
         self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
 
         # Попытка получить удаленный купон и проверка
-        delete_response = self.client.get(
+        delete_response = client.get(
             self.get_coupon_detail_url_with_kwargs(code=self.coupon1.code),
         )
         self.assertEqual(delete_response.status_code, status.HTTP_404_NOT_FOUND)

@@ -40,34 +40,11 @@ class Command(BaseCommand):
         order_view = Permission.objects.get(codename='view_order')
         order_add = Permission.objects.get(codename='add_order')
         order_change = Permission.objects.get(codename='change_order')
-        order_delete = Permission.objects.get(codename='delete_order')
         manage_orders = Permission.objects.get(codename='manage_orders')
-
-        # Элементы заказа
-        orderitem_view = Permission.objects.get(codename='view_orderitem')
-        orderitem_add = Permission.objects.get(codename='add_orderitem')
-        orderitem_change = Permission.objects.get(codename='change_orderitem')
-        orderitem_delete = Permission.objects.get(codename='delete_orderitem')
 
         # Платежи
         payment_view = Permission.objects.get(codename='view_payment')
         payment_add = Permission.objects.get(codename='add_payment')
-        payment_change = Permission.objects.get(codename='change_payment')
-        payment_delete = Permission.objects.get(codename='delete_payment')
-        manage_payments = Permission.objects.get(codename='manage_payments')
-
-        # Пользователи
-        user_view = Permission.objects.get(codename='view_user')
-        user_add = Permission.objects.get(codename='add_user')
-        user_change = Permission.objects.get(codename='change_user')
-        user_delete = Permission.objects.get(codename='delete_user')
-
-        # Профили
-        profile_view = Permission.objects.get(codename='view_profile', content_type__model='profile', content_type__app_label='users',)
-        profile_add = Permission.objects.get(codename='add_profile', content_type__model='profile', content_type__app_label='users',)
-        profile_change = Permission.objects.get(codename='change_profile', content_type__model='profile', content_type__app_label='users',)
-        profile_delete = Permission.objects.get(codename='delete_profile', content_type__model='profile', content_type__app_label='users',)
-        manage_profiles = Permission.objects.get(codename='manage_profiles')
 
         ### Группы ###
 
@@ -136,69 +113,4 @@ class Command(BaseCommand):
         else:
             self.stdout.write(
                 self.style.ERROR('Роль Manager (Менеджер) уже существует.')
-            )
-
-        # Админ
-        admin, created = Group.objects.get_or_create(name='Admin')
-        admin.permissions.set([
-            product_view,
-            product_add,
-            product_change,
-            product_delete,
-            manage_products,
-
-            category_view,
-            category_add,
-            category_change,
-            category_delete,
-            manage_categories,
-
-            coupon_view,
-            coupon_add,
-            coupon_change,
-            coupon_delete,
-            manage_coupons,
-            
-            review_view,
-            review_add,
-            review_change,
-            review_delete,
-            manage_reviews,
-
-            order_view,
-            order_add,
-            order_change,
-            order_delete,
-            manage_orders,
-
-            orderitem_view,
-            orderitem_add,
-            orderitem_change,
-            orderitem_delete,
-
-            payment_view,
-            payment_add,
-            payment_change,
-            payment_delete,
-            manage_payments,
-
-            user_view,
-            user_add,
-            user_change,
-            user_delete,
-
-            profile_view,
-            profile_add,
-            profile_change,
-            profile_delete,
-            manage_profiles,
-        ])
-
-        if created:
-            self.stdout.write(
-                self.style.SUCCESS('Роль Admin (Админ) создана.')
-            )
-        else:
-            self.stdout.write(
-                self.style.ERROR('Роль Admin (Админ) уже существует.')
             )
