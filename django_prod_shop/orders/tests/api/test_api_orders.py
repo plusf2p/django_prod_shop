@@ -309,46 +309,33 @@ class OrdersAPITest(APITestCase):
             )
         )
 
-    def test_admin_user_can_get_all_orders(self) -> None:
+    def _check_admin_or_manger_user_can_get_all_orders(self, client: APIClient) -> None:
         # Получение списка заказов и проверка
-        admin_normal_response = self.admin_client.get(self.orders_list_url)
-        self.assertEqual(admin_normal_response.status_code, status.HTTP_200_OK)
+        all_orders_response = client.get(self.orders_list_url)
+        self.assertEqual(all_orders_response.status_code, status.HTTP_200_OK)
 
         # Проверка на наличие всехх заказов в списке
         self.assertTrue(
             self.check_contains_order_in_order_response(
-                order_response=admin_normal_response,
+                order_response=all_orders_response,
                 order=self.order_normal,
             )
         )
         self.assertTrue(
             self.check_contains_order_in_order_response(
-                order_response=admin_normal_response,
+                order_response=all_orders_response,
                 order=self.order_admin,
             )
         )
 
         # Проверка количества заказов
-        self.assertEqual(len(admin_normal_response.data), 2)
+        self.assertEqual(len(all_orders_response.data), 2)
+
+    def test_admin_user_can_get_all_orders(self) -> None:
+        self._check_admin_or_manger_user_can_get_all_orders(self.admin_client)
     
     def test_manager_user_can_get_all_orders(self) -> None:
-        # Получение списка заказов и проверка
-        manager_normal_response = self.manager_client.get(self.orders_list_url)
-        self.assertEqual(manager_normal_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на наличие всехх заказов в списке
-        self.assertTrue(
-            self.check_contains_order_in_order_response(
-                order_response=manager_normal_response,
-                order=self.order_normal,
-            )
-        )
-        self.assertTrue(
-            self.check_contains_order_in_order_response(
-                order_response=manager_normal_response,
-                order=self.order_admin,
-            )
-        )
+        self._check_admin_or_manger_user_can_get_all_orders(self.manager_client)
 
     def test_anon_user_cannot_get_order_detail(self) -> None:
         # Неправильное получение заказа и проверка
@@ -376,29 +363,23 @@ class OrdersAPITest(APITestCase):
         )
         self.assertEqual(invalid_normal_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_admin_user_can_get_other_order_detail(self) -> None:
+    def _check_admin_or_manager_user_can_get_other_order_detail(self, client: APIClient) -> None:
         # Получение своего заказа и проверка
-        detail_admin_response = self.admin_client.get(
+        detail_response = client.get(
             self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
         )
-        self.assertEqual(detail_admin_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
 
         # Проверка на совпадение заказа из ответа
         self.check_order_in_order_data(
-            order_data=detail_admin_response.data, order=self.order_normal,
+            order_data=detail_response.data, order=self.order_normal,
         )
+
+    def test_admin_user_can_get_other_order_detail(self) -> None:
+        self._check_admin_or_manager_user_can_get_other_order_detail(self.admin_client)
     
     def test_manager_user_can_get_other_order_detail(self) -> None:
-        # Получение своего заказа и проверка
-        detail_manager_response = self.manager_client.get(
-            self.get_order_detail_url_with_order_id(order_id=self.order_normal.order_id),
-        )
-        self.assertEqual(detail_manager_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на совпадение заказа из ответа
-        self.check_order_in_order_data(
-            order_data=detail_manager_response.data, order=self.order_normal,
-        )
+        self._check_admin_or_manager_user_can_get_other_order_detail(self.manager_client)
 
     def test_anon_user_cannot_create_order(self) -> None:
         # Данные для создания заказа
@@ -577,30 +558,21 @@ class OrdersAPITest(APITestCase):
         self.assertEqual(invalid_admin_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(invalid_admin_response.data['status'], 'Такого статуса не существует')
 
+    def _check_admin_or_manager_user_can_change_any_order_status(self, client: APIClient) -> None:
+        # Смена статуса и проверка
+        change_status_response = client.post(
+            self.get_order_status_change_url_with_order_id(
+                order_id=self.order_normal.order_id, 
+            ), data={'status': 'delivered'},
+        )
+        self.assertEqual(change_status_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(change_status_response.data['status'], 'delivered')
+
+        # Проверка на обновленность статуса
+        self.order_normal.refresh_from_db()
+        self.assertEqual(self.order_normal.status, 'delivered')
+
     def test_admin_user_can_change_any_order_status(self) -> None:
-        # Смена статуса и проверка
-        change_status_admin_response = self.admin_client.post(
-            self.get_order_status_change_url_with_order_id(
-                order_id=self.order_normal.order_id, 
-            ), data={'status': 'delivered'},
-        )
-        self.assertEqual(change_status_admin_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(change_status_admin_response.data['status'], 'delivered')
-
-        # Проверка на обновленность статуса
-        self.order_normal.refresh_from_db()
-        self.assertEqual(self.order_normal.status, 'delivered')
-    
+        self._check_admin_or_manager_user_can_change_any_order_status(self.admin_client)
     def test_manager_user_can_change_any_order_status(self) -> None:
-        # Смена статуса и проверка
-        change_status_manager_response = self.manager_client.post(
-            self.get_order_status_change_url_with_order_id(
-                order_id=self.order_normal.order_id, 
-            ), data={'status': 'delivered'},
-        )
-        self.assertEqual(change_status_manager_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(change_status_manager_response.data['status'], 'delivered')
-
-        # Проверка на обновленность статуса
-        self.order_normal.refresh_from_db()
-        self.assertEqual(self.order_normal.status, 'delivered')
+        self._check_admin_or_manager_user_can_change_any_order_status(self.manager_client)

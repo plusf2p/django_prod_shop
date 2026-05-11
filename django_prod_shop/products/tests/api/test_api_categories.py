@@ -225,29 +225,23 @@ class CategoryAPITest(APITestCase):
         self.assertIn(active_product.slug, product_slugs)
         self.assertNotIn(inactive_product.slug, product_slugs)
 
-    def test_admin_user_can_get_inactive_product_from_category_detail(self) -> None:
+    def _check_admin_or_manager_user_can_get_inactive_product_from_category_detail(self, client: APIClient) -> None:
         # Создание неактивного товара
         inactive_product = Product.objects.create(**self.create_product_data(is_active=False))
 
         # Получение детальной категории и проверка
-        category_detail_response = self.admin_client.get(self.get_category_detail_url_with_slug(self.category1.slug))
+        category_detail_response = client.get(self.get_category_detail_url_with_slug(self.category1.slug))
         self.assertEqual(category_detail_response.status_code, status.HTTP_200_OK)
 
         # Проверка на наличие товаров в детальной категории
         product_slugs = {item['slug'] for item in category_detail_response.data['products']}
         self.assertIn(inactive_product.slug, product_slugs)
+
+    def test_admin_user_can_get_inactive_product_from_category_detail(self) -> None:
+        self._check_admin_or_manager_user_can_get_inactive_product_from_category_detail(self.admin_client)
     
     def test_manager_user_can_get_inactive_product_from_category_detail(self) -> None:
-        # Создание неактивного товара
-        inactive_product = Product.objects.create(**self.create_product_data(is_active=False))
-
-        # Получение детальной категории и проверка
-        category_detail_response = self.manager_client.get(self.get_category_detail_url_with_slug(self.category1.slug))
-        self.assertEqual(category_detail_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на наличие товаров в детальной категории
-        product_slugs = {item['slug'] for item in category_detail_response.data['products']}
-        self.assertIn(inactive_product.slug, product_slugs)
+        self._check_admin_or_manager_user_can_get_inactive_product_from_category_detail(self.manager_client)
 
     def test_anon_user_cannot_create_category(self) -> None:
         # Данные для создания категории
@@ -307,12 +301,12 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_admin_user_can_create_category(self) -> None:
+    def _check_admin_or_manager_user_can_create_category(self, client: APIClient) -> None:
         # Данные для создания категории
         category_data = self.update_category_data()
 
         # Создание категории админом и проверка
-        created_response = self.admin_client.post(
+        created_response = client.post(
             self.category_list_url, data=category_data, format='json',
         )
         self.assertEqual(created_response.status_code, status.HTTP_201_CREATED)
@@ -326,34 +320,16 @@ class CategoryAPITest(APITestCase):
         self.check_category_from_db(slug=category_data['slug'])
 
         # Взятие этой категории и проверка
-        new_created_category_response = self.admin_client.get(
+        new_created_category_response = client.get(
             self.get_category_detail_url_with_slug(slug=category_data['slug']),
         )
         self.assertEqual(new_created_category_response.status_code, status.HTTP_200_OK)
+
+    def test_admin_user_can_create_category(self) -> None:
+        self._check_admin_or_manager_user_can_create_category(self.admin_client)
     
     def test_manager_user_can_create_category(self) -> None:
-        # Данные для создания категории
-        category_data = self.update_category_data()
-
-        # Создание категории менеджером и проверка
-        created_response = self.manager_client.post(
-            self.category_list_url, data=category_data, format='json',
-        )
-        self.assertEqual(created_response.status_code, status.HTTP_201_CREATED)
-
-        # Проверка созданной категории
-        self.check_contains_category_in_created_category_response(
-            created_category_data=created_response.data, category_data=category_data,
-        )
-
-        # Проверка на создание категории
-        self.check_category_from_db(slug=category_data['slug'])
-
-        # Взятие этой категории и проверка
-        new_created_category_response = self.manager_client.get(
-            self.get_category_detail_url_with_slug(slug=category_data['slug']),
-        )
-        self.assertEqual(new_created_category_response.status_code, status.HTTP_200_OK)
+        self._check_admin_or_manager_user_can_create_category(self.manager_client)
 
     def test_anon_user_cannot_put_category(self) -> None:
         # Данные для полного обновления категории
@@ -423,7 +399,7 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_admin_user_can_put_category(self) -> None:
+    def _check_admin_or_manager_user_can_put_category(self, client: APIClient) -> None:
         # Данные для полного обновления категории
         new_category_data = self.update_category_data(
             title='New put test',
@@ -433,8 +409,8 @@ class CategoryAPITest(APITestCase):
         # Старый слаг
         old_slug = self.category1.slug
 
-        # Полное обновление категории админом и проверка
-        put_response = self.admin_client.put(
+        # Полное обновление категории и проверка
+        put_response = client.put(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
             data=new_category_data, format='json',
         )
@@ -449,7 +425,7 @@ class CategoryAPITest(APITestCase):
         self.assertNotEqual(new_category.slug, old_slug)
 
         # Взятие новой категории и проверка
-        category_response = self.admin_client.get(
+        category_response = client.get(
             self.get_category_detail_url_with_slug(slug=new_category_data['slug']),
         )
         self.assertEqual(category_response.status_code, status.HTTP_200_OK)
@@ -458,42 +434,12 @@ class CategoryAPITest(APITestCase):
         self.check_contains_category_in_created_category_response(
             created_category_data=category_response.data, category_data=new_category_data,
         )
+
+    def test_admin_user_can_put_category(self) -> None:
+        self._check_admin_or_manager_user_can_put_category(self.admin_client)
     
     def test_manager_user_can_put_category(self) -> None:
-        # Данные для полного обновления категории
-        new_category_data = self.update_category_data(
-            title='New put test',
-            slug='new-put-test',
-        )
-
-        # Старый слаг
-        old_slug = self.category1.slug
-
-        # Полное обновление категории менеджером и проверка
-        put_response = self.manager_client.put(
-            self.get_category_detail_url_with_slug(slug=self.category1.slug),
-            data=new_category_data, format='json',
-        )
-        self.assertEqual(put_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на категорий в БД
-        self.category1.refresh_from_db()
-        self.assertTrue(Category.objects.filter(slug=new_category_data['slug']).exists())
-
-        new_category = Category.objects.get(slug=new_category_data['slug'])
-        self.assertEqual(new_category.slug, new_category_data['slug'])
-        self.assertNotEqual(new_category.slug, old_slug)
-
-        # Взятие новой категории и проверка
-        category_response = self.manager_client.get(
-            self.get_category_detail_url_with_slug(slug=new_category_data['slug']),
-        )
-        self.assertEqual(category_response.status_code, status.HTTP_200_OK)
-
-        # Проверка новой категории
-        self.check_contains_category_in_created_category_response(
-            created_category_data=category_response.data, category_data=new_category_data,
-        )
+        self._check_admin_or_manager_user_can_put_category(self.manager_client)
 
     def test_anon_user_cannot_patch_category(self) -> None:
         # Данные для частичного обновления категории
@@ -561,14 +507,14 @@ class CategoryAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_admin_user_can_patch_category(self) -> None:
+    def _check_admin_or_manager_user_can_patch_category(self, client: APIClient) -> None:
         # Данные для частичного обновления категории
         new_category_data = {
             'title': 'New title',
         }
 
         # Частичное обновление категории админом и проверка
-        patch_response = self.admin_client.patch(
+        patch_response = client.patch(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
             data=new_category_data, format='json',
         )
@@ -582,36 +528,16 @@ class CategoryAPITest(APITestCase):
         )
 
         # Взятие новой категории и проверка
-        category_response = self.admin_client.get(
+        category_response = client.get(
             self.get_category_detail_url_with_slug(slug=self.category1.slug),
         )
         self.assertEqual(category_response.status_code, status.HTTP_200_OK)
+
+    def test_admin_user_can_patch_category(self) -> None:
+        self._check_admin_or_manager_user_can_patch_category(self.admin_client)
     
     def test_manager_user_can_patch_category(self) -> None:
-        # Данные для частичного обновления категории
-        new_category_data = {
-            'title': 'New title',
-        }
-
-        # Частичное обновление категории менеджером и проверка
-        patch_response = self.manager_client.patch(
-            self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-            data=new_category_data, format='json',
-        )
-        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
-        
-        # Проверка на обновление категории
-        self.category1.refresh_from_db()
-        self.check_category_from_db(
-            slug=self.category1.slug, 
-            title=new_category_data['title'],
-        )
-
-        # Взятие новой категории и проверка
-        category_response = self.manager_client.get(
-            self.get_category_detail_url_with_slug(slug=self.category1.slug),
-        )
-        self.assertEqual(category_response.status_code, status.HTTP_200_OK)
+        self._check_admin_or_manager_user_can_patch_category(self.manager_client)
 
     def test_anon_user_cannot_delete_category(self) -> None:
         # Неправильное удаление категории анонимным пользователем и проверка
@@ -633,9 +559,9 @@ class CategoryAPITest(APITestCase):
         # Проверка на неудаление
         self.assertTrue(Category.objects.filter(slug=self.category1.slug).exists())
 
-    def test_admin_user_can_delete_category(self) -> None:
-        # Удалиение категории админом
-        delete_response = self.admin_client.delete(
+    def _check_admin_or_manager_user_can_delete_category(self, client: APIClient) -> None:
+        # Удалиение категории
+        delete_response = client.delete(
             self.get_category_detail_url_with_slug(slug=self.category1.slug), 
         )
         self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
@@ -644,19 +570,11 @@ class CategoryAPITest(APITestCase):
         self.assertFalse(Category.objects.filter(slug=self.category1.slug).exists())
 
         # Проверка на наличие удаленной категории
-        deleted_response = self.admin_client.get(self.get_category_detail_url_with_slug(slug=self.category1.slug))
+        deleted_response = client.get(self.get_category_detail_url_with_slug(slug=self.category1.slug))
         self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_user_can_delete_category(self) -> None:
+        self._check_admin_or_manager_user_can_delete_category(self.admin_client)
     
     def test_manager_user_can_delete_category(self) -> None:
-        # Удалиение категории менеджером
-        delete_response = self.manager_client.delete(
-            self.get_category_detail_url_with_slug(slug=self.category1.slug), 
-        )
-        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # Проверка на удаление
-        self.assertFalse(Category.objects.filter(slug=self.category1.slug).exists())
-
-        # Проверка на наличие удаленной категории
-        deleted_response = self.manager_client.get(self.get_category_detail_url_with_slug(slug=self.category1.slug))
-        self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
+        self._check_admin_or_manager_user_can_delete_category(self.manager_client)

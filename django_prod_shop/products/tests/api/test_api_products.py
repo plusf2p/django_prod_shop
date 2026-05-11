@@ -138,7 +138,7 @@ class ProductAPITest(APITestCase):
         self.assertEqual(product_data['quantity'], product.quantity)
         self.assertEqual(product_data['reserved_quantity'], product.reserved_quantity)
 
-    def check_product_from_db(self, slug: str, **data: dict[str, Any]) -> Product:
+    def check_product_from_db(self, slug: str, **data: Any) -> Product:
         # Проверка товара на создание в бд
         self.assertTrue(Product.objects.filter(slug=slug).exists())
         product = Product.objects.get(slug=slug)
@@ -394,12 +394,15 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_admin_user_can_create_product(self) -> None:
+
+
+
+    def _check_admin_or_manager_user_can_create_product(self, client: APIClient) -> None:
         # Данные для создания товара
         product_data = self.update_product_data()
 
         # Создание товара админом и проверка
-        new_created_product_response = self.admin_client.post(
+        new_created_product_response = client.post(
             self.product_list_url, data=product_data, format='multipart',
         )
         self.assertEqual(new_created_product_response.status_code, status.HTTP_201_CREATED)
@@ -437,50 +440,13 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
         self.check_contains_product_in_product_data(detail_response.data, new_product)
+
+
+    def test_admin_user_can_create_product(self) -> None:
+        self._check_admin_or_manager_user_can_create_product(self.admin_client)
     
     def test_manager_user_can_create_product(self) -> None:
-        # Данные для создания товара
-        product_data = self.update_product_data()
-
-        # Создание товара админом и проверка
-        new_created_product_response = self.manager_client.post(
-            self.product_list_url, data=product_data, format='multipart',
-        )
-        self.assertEqual(new_created_product_response.status_code, status.HTTP_201_CREATED)
-
-        # Проверка созданного товара
-        self.assertEqual(
-            new_created_product_response.data['title'], product_data['title']
-        )
-        self.assertEqual(
-            Decimal(new_created_product_response.data['price']), Decimal(product_data['price'])
-        )
-        self.assertEqual(
-            new_created_product_response.data['slug'], product_data['slug']
-        )
-        self.assertEqual(
-            new_created_product_response.data['quantity'], product_data['quantity']
-        )
-        self.assertEqual(
-            new_created_product_response.data['reserved_quantity'], product_data['reserved_quantity']
-        )
-
-        # Проверка нового товара
-        new_product = self.check_product_from_db(
-            slug=product_data['slug'],
-            title=product_data['title'],
-            price=product_data['price'],
-            quantity=product_data['quantity'],
-            reserved_quantity=product_data['reserved_quantity'],
-            is_active=product_data['is_active'],
-        )
-
-        # Получение товара и проверка
-        detail_response = self.manager_client.get(
-            self.get_product_detail_url_with_slug(new_product.slug)
-        )
-        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
-        self.check_contains_product_in_product_data(detail_response.data, new_product)
+        self._check_admin_or_manager_user_can_create_product(self.manager_client)
 
     def test_anon_user_cannot_put_product(self) -> None:
         # Данные для полного обновления товара
@@ -547,15 +513,16 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST) 
 
-    def test_admin_user_can_put_product(self) -> None:
+
+    def _check_admin_or_manager_user_can_put_product(self, client: APIClient) -> None:
         # Данные для полного обновления товара
         new_product_data = self.update_product_data()
 
         # Старый слаг
         old_slug = self.product1.slug
 
-        # Полное обновление товара админом и проверка
-        put_response = self.admin_client.put(
+        # Полное обновление товара и проверка
+        put_response = client.put(
             self.get_product_detail_url_with_slug(self.product1.slug), 
             data=new_product_data, format='multipart',
         )
@@ -580,40 +547,12 @@ class ProductAPITest(APITestCase):
         self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
         self.assertEqual(Decimal(detail_response.data['price']), Decimal(new_product_data['price']))
         self.assertEqual(detail_response.data['quantity'], new_product_data['quantity'])
+
+    def test_admin_user_can_put_product(self) -> None:
+        self._check_admin_or_manager_user_can_put_product(self.admin_client)
     
     def test_manager_user_can_put_product(self) -> None:
-        # Данные для полного обновления товара
-        new_product_data = self.update_product_data()
-
-        # Старый слаг
-        old_slug = self.product1.slug
-
-        # Полное обновление товара админом и проверка
-        put_response = self.manager_client.put(
-            self.get_product_detail_url_with_slug(self.product1.slug), 
-            data=new_product_data, format='multipart',
-        )
-        self.assertEqual(put_response.status_code, status.HTTP_200_OK)
-        
-        # Проверка обновленного товара
-        updated_product = self.check_product_from_db(
-            slug=new_product_data['slug'],
-            title=new_product_data['title'],
-            price=new_product_data['price'],
-            quantity=new_product_data['quantity'],
-            reserved_quantity=new_product_data['reserved_quantity'],
-            description=new_product_data['description'],
-            is_active=new_product_data['is_active'],
-        )
-        self.assertNotEqual(updated_product.slug, old_slug)
-
-        # Получение и проверка обновленного товара
-        detail_response = self.manager_client.get(
-            self.get_product_detail_url_with_slug(new_product_data['slug'])
-        )
-        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(Decimal(detail_response.data['price']), Decimal(new_product_data['price']))
-        self.assertEqual(detail_response.data['quantity'], new_product_data['quantity'])
+        self._check_admin_or_manager_user_can_put_product(self.manager_client)
     
     def test_anon_user_cannot_patch_product(self) -> None:
         # Старые данные
@@ -720,7 +659,7 @@ class ProductAPITest(APITestCase):
         self.assertEqual(self.product1.reserved_quantity, old_reserved_quantity)
         self.assertEqual(self.product1.quantity, old_quantity)
 
-    def test_admin_user_can_patch_product(self) -> None:
+    def _check_admin_or_manager_user_can_patch_product(self, client: APIClient) -> None:
         # Старые данные
         old_price = self.product1.price
         old_quantity = self.product1.quantity
@@ -732,7 +671,7 @@ class ProductAPITest(APITestCase):
         }
 
         # Частичное обновление товара админом и проверка
-        patch_response = self.admin_client.patch(
+        patch_response = client.patch(
             self.get_product_detail_url_with_slug(self.product1.slug),
             data=new_product_data, format='multipart',
         )
@@ -744,7 +683,7 @@ class ProductAPITest(APITestCase):
         self.assertNotEqual(self.product1.quantity, old_quantity)
 
         # Взятие обновленного товара и проверка
-        response = self.admin_client.get(
+        response = client.get(
             self.get_product_detail_url_with_slug(self.product1.slug),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -752,39 +691,12 @@ class ProductAPITest(APITestCase):
         # Проверка обновленного товара
         self.assertEqual(Decimal(response.data['price']), Decimal(new_product_data['price']))
         self.assertEqual(response.data['quantity'], new_product_data['quantity'])
+
+    def test_admin_user_can_patch_product(self) -> None:
+        self._check_admin_or_manager_user_can_patch_product(self.admin_client)
     
     def test_manager_user_can_patch_product(self) -> None:
-        # Старые данные
-        old_price = self.product1.price
-        old_quantity = self.product1.quantity
-
-        # Данные для частичного обновления товара
-        new_product_data = {
-            'price': 500,
-            'quantity': 400,
-        }
-
-        # Частичное обновление товара админом и проверка
-        patch_response = self.manager_client.patch(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-            data=new_product_data, format='multipart',
-        )
-        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на обновление товара в БД
-        self.product1.refresh_from_db()
-        self.assertNotEqual(self.product1.price, old_price)
-        self.assertNotEqual(self.product1.quantity, old_quantity)
-
-        # Взятие обновленного товара и проверка
-        response = self.manager_client.get(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Проверка обновленного товара
-        self.assertEqual(Decimal(response.data['price']), Decimal(new_product_data['price']))
-        self.assertEqual(response.data['quantity'], new_product_data['quantity'])
+        self._check_admin_or_manager_user_can_patch_product(self.manager_client)
 
     def test_anon_user_cannot_delete_product(self) -> None:
         # Неправильное удаление товара анонимным пользователем и проверка
@@ -806,37 +718,27 @@ class ProductAPITest(APITestCase):
         # Проверка на неудаление товара в БД
         self.assertTrue(Product.objects.filter(slug=self.product1.slug).exists())
     
+    def _check_admin_or_manager_user_can_delete_product(self, client: APIClient) -> None:
+        # Удаление товара
+        delete_response = client.delete(
+            self.get_product_detail_url_with_slug(self.product1.slug),
+        )
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Проверка на удаление товара в БД
+        self.assertFalse(Product.objects.filter(slug=self.product1.slug).exists())
+
+        # Проверка на наличие товара после удаления
+        deleted_response = client.get(
+            self.get_product_detail_url_with_slug(self.product1.slug),
+        )
+        self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_admin_user_can_delete_product(self) -> None:
-        # Удаление товара админом
-        delete_response = self.admin_client.delete(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-        )
-        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+        self._check_admin_or_manager_user_can_delete_product(self.admin_client)
 
-        # Проверка на удаление товара в БД
-        self.assertFalse(Product.objects.filter(slug=self.product1.slug).exists())
-
-        # Проверка на наличие товара после удаления
-        deleted_response = self.admin_client.get(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-        )
-        self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
-    
     def test_manager_user_can_delete_product(self) -> None:
-        # Удаление товара менеджером
-        delete_response = self.manager_client.delete(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-        )
-        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # Проверка на удаление товара в БД
-        self.assertFalse(Product.objects.filter(slug=self.product1.slug).exists())
-
-        # Проверка на наличие товара после удаления
-        deleted_response = self.manager_client.get(
-            self.get_product_detail_url_with_slug(self.product1.slug),
-        )
-        self.assertEqual(deleted_response.status_code, status.HTTP_404_NOT_FOUND)
+        self._check_admin_or_manager_user_can_delete_product(self.manager_client)
 
     def test_anon_user_cannot_get_inactive_product_detail(self) -> None:
         # Создание неактивного товара анонимно
@@ -866,39 +768,28 @@ class ProductAPITest(APITestCase):
         )
         self.assertEqual(wrong_normal_response.status_code, status.HTTP_404_NOT_FOUND)
     
-    def test_admin_user_can_get_inactive_product_detail(self) -> None:
-        # Создание неактивного товара админом
+    def _check_admin_or_manager_user_can_get_inactive_product_detail(self, client: APIClient) -> None:
+        # Создание неактивного товара
         inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
 
         # Проверка товара в БД
         self.check_product_from_db(slug=inactive_product.slug, is_active=False)
 
         # Попытка взять неактивный товар админом и проверка
-        inactive_response = self.admin_client.get(
+        inactive_response = client.get(
             self.get_product_detail_url_with_slug(inactive_product.slug),
         )
         self.assertEqual(inactive_response.status_code, status.HTTP_200_OK)
 
         # Попытка взять список, где есть неактивный товар и проверка
-        inactive_list_response = self.admin_client.get(self.product_list_url)
+        inactive_list_response = client.get(self.product_list_url)
         self.get_item_in_list(products_response=inactive_list_response, slug=inactive_product.slug)
+
+    def test_admin_user_can_get_inactive_product_detail(self) -> None:
+        self._check_admin_or_manager_user_can_get_inactive_product_detail(self.admin_client)
 
     def test_manager_user_can_get_inactive_product_detail(self) -> None:
-        # Создание неактивного товара менеджером
-        inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
-
-        # Проверка товара в БД
-        self.check_product_from_db(slug=inactive_product.slug, is_active=False)
-
-        # Попытка взять неактивный товар менеджером и проверка
-        inactive_response = self.manager_client.get(
-            self.get_product_detail_url_with_slug(inactive_product.slug),
-        )
-        self.assertEqual(inactive_response.status_code, status.HTTP_200_OK)
-
-        # Попытка взять список, где есть неактивный товар и проверка
-        inactive_list_response = self.manager_client.get(self.product_list_url)
-        self.get_item_in_list(products_response=inactive_list_response, slug=inactive_product.slug)
+        self._check_admin_or_manager_user_can_get_inactive_product_detail(self.manager_client)
 
     def test_anon_user_cannot_get_inactive_product_in_product_list(self) -> None:
         # Создание обычного товара анонимно
@@ -948,11 +839,11 @@ class ProductAPITest(APITestCase):
         self.assertIn(active_product.slug, products_slugs)
         self.assertNotIn(inactive_product.slug, products_slugs)
 
-    def test_admin_user_can_get_inactive_product_in_product_list(self) -> None:
-        # Создание обычного товара админом
+    def _check_admin_or_manager_user_can_get_inactive_product_in_product_list(self, client: APIClient) -> None:
+        # Создание обычного товара
         active_product = Product.objects.create(**self.update_product_data())
 
-        # Создание неактивного товара админом
+        # Создание неактивного товара
         inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
         
         # Проверка товаров в БД
@@ -963,35 +854,17 @@ class ProductAPITest(APITestCase):
             slug=active_product.slug, is_active=True,
         )
 
-        # Получение списка товаров админом и проверка
-        admin_product_list_response = self.admin_client.get(self.product_list_url)
-        self.assertEqual(admin_product_list_response.status_code, status.HTTP_200_OK)
+        # Получение списка товаров и проверка
+        product_list_response = client.get(self.product_list_url)
+        self.assertEqual(product_list_response.status_code, status.HTTP_200_OK)
 
         # Проверка на наличие нужных слагов в списке товаров
-        products_slugs = self.get_list_of_slugs(admin_product_list_response)
+        products_slugs = self.get_list_of_slugs(product_list_response)
         self.assertIn(active_product.slug, products_slugs)
         self.assertIn(inactive_product.slug, products_slugs)
+
+    def test_admin_user_can_get_inactive_product_in_product_list(self) -> None:
+        self._check_admin_or_manager_user_can_get_inactive_product_in_product_list(self.admin_client)
     
     def test_manager_user_can_get_inactive_product_in_product_list(self) -> None:
-        # Создание обычного товара менеджером
-        active_product = Product.objects.create(**self.update_product_data())
-
-        # Создание неактивного товара менеджером
-        inactive_product = Product.objects.create(**self.update_product_data(is_active=False))
-        
-        # Проверка товаров в БД
-        self.check_product_from_db(
-            slug=inactive_product.slug, is_active=False,
-        )
-        self.check_product_from_db(
-            slug=active_product.slug, is_active=True,
-        )
-
-        # Получение списка товаров менеджером и проверка
-        admin_product_list_response = self.manager_client.get(self.product_list_url)
-        self.assertEqual(admin_product_list_response.status_code, status.HTTP_200_OK)
-
-        # Проверка на наличие нужных слагов в списке товаров
-        products_slugs = self.get_list_of_slugs(admin_product_list_response)
-        self.assertIn(active_product.slug, products_slugs)
-        self.assertIn(inactive_product.slug, products_slugs)
+        self._check_admin_or_manager_user_can_get_inactive_product_in_product_list(self.manager_client)
