@@ -99,7 +99,7 @@ class ProductAPITest(APITestCase):
     def get_product_detail_url_with_slug(self, slug: str) -> str:
         return reverse('products:product-detail', kwargs={'slug': slug})
 
-    def get_list_items(self, products_response: Response) -> dict[str, Any]:
+    def get_list_items(self, products_response: Response) -> list[dict[str, Any]]:
         if 'results' in products_response.data:
             return products_response.data['results']
         return products_response.data
@@ -115,7 +115,7 @@ class ProductAPITest(APITestCase):
                 return item
         self.fail(f"Товара со слагом '{slug}' не найдено")
 
-    def update_product_data(self, **new_data: dict[str, Any]) -> dict[str, Any]:
+    def update_product_data(self, **new_data: Any) -> dict[str, Any]:
         data = {
             'title': 'Test new title',
             'category_id': self.category.pk,
@@ -130,7 +130,7 @@ class ProductAPITest(APITestCase):
         return data
 
     def check_contains_product_in_product_data(
-            self, product_data: dict[str, Any], product: Product,
+            self, product_data: Any, product: Product,
         ) -> None:
         self.assertEqual(product_data['title'], product.title)
         self.assertEqual(Decimal(product_data['price']), Decimal(product.price))
@@ -221,6 +221,39 @@ class ProductAPITest(APITestCase):
         self.assertIn(self.product1.slug, all_products_slugs)
         self.assertIn(self.product2.slug, all_products_slugs)
     
+    def test_product_detail_contains_similar_products(self) -> None:
+        # Создание новой категории
+        test_category = Category.objects.create(
+            title='Test category 123',
+            description='Test category 123',
+            slug='test-category-123',
+        )
+
+        # Создание товара с той же категирией, что и product1
+        similar_of_product1_product = Product.objects.create(
+            **self.update_product_data(slug='similar-product')
+        )
+
+        # Создание товара с отличной от product1 категорией
+        other_product = Product.objects.create(
+            **self.update_product_data(
+                slug='other-category-product',
+                category_id=test_category.pk,
+            )
+        )
+
+        # Запрос для получения похожих товаров (у product1) и проверка
+        similar_response = self.anon_client.get(
+            self.get_product_detail_url_with_slug(self.product1.slug)
+        )
+        self.assertEqual(similar_response.status_code, status.HTTP_200_OK)
+
+        # Проверка на наличие схожих товаров в ответе
+        similar_slugs = {item['slug'] for item in similar_response.data['similar_products']}
+        self.assertIn(similar_of_product1_product.slug, similar_slugs)
+        self.assertNotIn(other_product.slug, similar_slugs)
+        self.assertNotIn(self.product1.slug, similar_slugs)
+
     def test_anon_user_can_get_product_list(self) -> None:
         # Получение всех товаров и проверка
         list_response = self.anon_client.get(self.product_list_url)
@@ -330,6 +363,36 @@ class ProductAPITest(APITestCase):
 
         # Проверка на неcоздание товара
         self.assertFalse(Product.objects.filter(slug=wrong_product_data['slug']).exists())
+
+    def test_admin_user_cannot_create_product_with_quantity_lt_0(self) -> None:
+        # Неправильные данные для создания товара
+        wrong_product_data = self.update_product_data(quantity=-100)
+
+        # Неправильная попытка создать товар админом и проверка
+        wrong_response = self.admin_client.post(
+            self.product_list_url, data=wrong_product_data, format='multipart',
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_admin_user_cannot_create_product_with_reserved_quantity_lt_0(self) -> None:
+        # Неправильные данные для создания товара
+        wrong_product_data = self.update_product_data(reserved_quantity=-100)
+
+        # Неправильная попытка создать товар админом и проверка
+        wrong_response = self.admin_client.post(
+            self.product_list_url, data=wrong_product_data, format='multipart',
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    def test_admin_user_cannot_create_product_with_already_exists_slug(self) -> None:
+        # Неправильные данные для создания товара
+        wrong_product_data = self.update_product_data(slug=self.product1.slug)
+
+        # Неправильная попытка создать товар админом и проверка
+        wrong_response = self.admin_client.post(
+            self.product_list_url, data=wrong_product_data, format='multipart',
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_admin_user_can_create_product(self) -> None:
         # Данные для создания товара
@@ -471,7 +534,18 @@ class ProductAPITest(APITestCase):
         wrong_response = self.admin_client.get(
             self.get_product_detail_url_with_slug(wrong_product_data['slug']),
         )
-        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)    
+        self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_user_cannot_put_product_with_already_exists_slug(self) -> None:
+        # Неправильные данные для полного обновления
+        wrong_product_data = self.update_product_data(slug=self.product2.slug)
+
+        # Неправильное полное обновление товара админом и проверка
+        wrong_response = self.admin_client.put(
+            self.get_product_detail_url_with_slug(self.product1.slug), 
+            data=wrong_product_data, format='multipart',
+        )
+        self.assertEqual(wrong_response.status_code, status.HTTP_400_BAD_REQUEST) 
 
     def test_admin_user_can_put_product(self) -> None:
         # Данные для полного обновления товара
@@ -542,6 +616,10 @@ class ProductAPITest(APITestCase):
         self.assertEqual(detail_response.data['quantity'], new_product_data['quantity'])
     
     def test_anon_user_cannot_patch_product(self) -> None:
+        # Старые данные
+        old_price = self.product1.price
+        old_quantity = self.product1.quantity
+
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -557,13 +635,14 @@ class ProductAPITest(APITestCase):
 
         # Проверка на необновление товара в БД
         self.product1.refresh_from_db()
-        self.check_product_from_db(
-            slug=self.product1.slug, 
-            price=self.product1.price, 
-            quantity=self.product1.quantity,
-        )
+        self.assertEqual(self.product1.price, old_price)
+        self.assertEqual(self.product1.quantity, old_quantity)
 
     def test_normal_user_cannot_patch_product(self) -> None:
+        # Старые данные
+        old_price = self.product1.price
+        old_quantity = self.product1.quantity
+
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -579,11 +658,8 @@ class ProductAPITest(APITestCase):
 
         # Проверка на необновление товара в БД
         self.product1.refresh_from_db()
-        self.check_product_from_db(
-            slug=self.product1.slug, 
-            price=self.product1.price,
-            quantity=self.product1.quantity,
-        )
+        self.assertEqual(self.product1.price, old_price)
+        self.assertEqual(self.product1.quantity, old_quantity)
 
     def test_admin_user_cannot_patch_product_with_invalid_data(self) -> None:
         # Неправильные данные для частичного обновления
@@ -609,8 +685,46 @@ class ProductAPITest(APITestCase):
             reverse('products:product-detail', kwargs={'slug': wrong_product_data['slug']}),
         )
         self.assertEqual(wrong_response.status_code, status.HTTP_404_NOT_FOUND)
+    
+    def test_admin_user_cannot_patch_product_quantity_lt_reserved_quantity(self) -> None:
+        # Старные данные
+        old_reserved_quantity = self.product1.reserved_quantity
+        old_quantity = self.product1.quantity
+
+        # Неправильное частичное обновление товара и проверка
+        wrong_patch_response = self.admin_client.patch(
+            self.get_product_detail_url_with_slug(self.product1.slug), 
+            data={'quantity': 1}, format='multipart',
+        )
+        self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на необновление товара в БД
+        self.product1.refresh_from_db()
+        self.assertEqual(self.product1.reserved_quantity, old_reserved_quantity)
+        self.assertEqual(self.product1.quantity, old_quantity)
+    
+    def test_admin_user_cannot_patch_product_reserved_quantity_gt_quantity(self) -> None:
+        # Старные данные
+        old_reserved_quantity = self.product1.reserved_quantity
+        old_quantity = self.product1.quantity
+
+        # Неправильное частичное обновление товара и проверка
+        wrong_patch_response = self.admin_client.patch(
+            self.get_product_detail_url_with_slug(self.product1.slug), 
+            data={'reserved_quantity': 99999}, format='multipart',
+        )
+        self.assertEqual(wrong_patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на необновление товара в БД
+        self.product1.refresh_from_db()
+        self.assertEqual(self.product1.reserved_quantity, old_reserved_quantity)
+        self.assertEqual(self.product1.quantity, old_quantity)
 
     def test_admin_user_can_patch_product(self) -> None:
+        # Старые данные
+        old_price = self.product1.price
+        old_quantity = self.product1.quantity
+
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -626,11 +740,8 @@ class ProductAPITest(APITestCase):
 
         # Проверка на обновление товара в БД
         self.product1.refresh_from_db()
-        self.check_product_from_db(
-            slug=self.product1.slug,
-            price=500,
-            quantity=400,
-        )
+        self.assertNotEqual(self.product1.price, old_price)
+        self.assertNotEqual(self.product1.quantity, old_quantity)
 
         # Взятие обновленного товара и проверка
         response = self.admin_client.get(
@@ -643,6 +754,10 @@ class ProductAPITest(APITestCase):
         self.assertEqual(response.data['quantity'], new_product_data['quantity'])
     
     def test_manager_user_can_patch_product(self) -> None:
+        # Старые данные
+        old_price = self.product1.price
+        old_quantity = self.product1.quantity
+
         # Данные для частичного обновления товара
         new_product_data = {
             'price': 500,
@@ -658,11 +773,8 @@ class ProductAPITest(APITestCase):
 
         # Проверка на обновление товара в БД
         self.product1.refresh_from_db()
-        self.check_product_from_db(
-            slug=self.product1.slug,
-            price=500,
-            quantity=400,
-        )
+        self.assertNotEqual(self.product1.price, old_price)
+        self.assertNotEqual(self.product1.quantity, old_quantity)
 
         # Взятие обновленного товара и проверка
         response = self.manager_client.get(
@@ -860,7 +972,7 @@ class ProductAPITest(APITestCase):
         self.assertIn(active_product.slug, products_slugs)
         self.assertIn(inactive_product.slug, products_slugs)
     
-    def test_manger_user_can_get_inactive_product_in_product_list(self) -> None:
+    def test_manager_user_can_get_inactive_product_in_product_list(self) -> None:
         # Создание обычного товара менеджером
         active_product = Product.objects.create(**self.update_product_data())
 
